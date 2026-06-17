@@ -34,6 +34,7 @@ void AGSPawn::BeginPlay()
 		CapsuleComponent->SetMobility(EComponentMobility::Movable);
 		CapsuleComponent->SetCollisionProfileName(TEXT("Pawn"));
 		CapsuleComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		CapsuleComponent->SetSimulatePhysics(true);
 	}
 
 	Super::BeginPlay();
