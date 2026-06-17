@@ -35,6 +35,7 @@ void AGSPawn::BeginPlay()
 		CapsuleComponent->SetCollisionProfileName(TEXT("Pawn"));
 		CapsuleComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		CapsuleComponent->SetSimulatePhysics(true);
+		CapsuleComponent->SetUpdateKinematicFromSimulation(true);
 	}
 
 	Super::BeginPlay();
