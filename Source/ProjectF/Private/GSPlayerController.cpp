@@ -15,21 +15,24 @@ void AGSPlayerController::BeginPlay()
 
 	UE_LOG(LogTemp, Warning, TEXT("=== AGSPlayerController::BeginPlay ==="));
 
-	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
+	if (IsLocalController())
 	{
-		if (InputMappingContext)
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
 		{
-			Subsystem->AddMappingContext(InputMappingContext, 0);
-			UE_LOG(LogTemp, Warning, TEXT("Successfully added InputMappingContext: %s"), *InputMappingContext->GetName());
+			if (InputMappingContext)
+			{
+				Subsystem->AddMappingContext(InputMappingContext, 0);
+				UE_LOG(LogTemp, Warning, TEXT("Successfully added InputMappingContext: %s"), *InputMappingContext->GetName());
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("InputMappingContext is NULL in GSPlayerController!"));
+			}
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("InputMappingContext is NULL in GSPlayerController!"));
+			UE_LOG(LogTemp, Error, TEXT("Failed to get UEnhancedInputLocalPlayerSubsystem!"));
 		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to get UEnhancedInputLocalPlayerSubsystem!"));
 	}
 }
 

@@ -24,6 +24,7 @@ AGSPawn::AGSPawn()
 	bCachedJumpPressed = false;
 
 	SetReplicateMovement(false);
+	bReplicates = true;
 }
 
 void AGSPawn::BeginPlay()
