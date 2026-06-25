@@ -8,6 +8,7 @@
 
 class UAbilitySystemComponent;
 class UAttributeSet;
+class UGSItemDataAsset;
 
 UCLASS()
 class PROJECTF_API AGSItem : public AActor, public IAbilitySystemInterface
@@ -30,4 +31,10 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS")
 	FGameplayTagContainer ItemTags;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Config")
+	TObjectPtr<UGSItemDataAsset> ItemData;
+
+	virtual void OnStateTagChanged(const FGameplayTag CallbackTag, int32 NewCount);
 };
+

@@ -10,6 +10,8 @@ class UAbilitySystemComponent;
 class UAttributeSet;
 class UBoxComponent;
 class UGameplayEffect;
+class UGSStationDataAsset;
+
 
 UCLASS()
 class PROJECTF_API AGSUtilityStation : public AActor, public IAbilitySystemInterface
@@ -57,7 +59,11 @@ protected:
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Station")
 	TArray<TObjectPtr<AActor>> PlacedItems;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Config")
+	TObjectPtr<UGSStationDataAsset> StationData;
+
 	TMap<TObjectPtr<AActor>, TArray<FActiveGameplayEffectHandle>> AppliedEffectsMap;
+
 
 	UFUNCTION()
 	void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
