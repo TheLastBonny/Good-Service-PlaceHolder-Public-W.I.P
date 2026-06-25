@@ -5,6 +5,7 @@
 #include "GameplayEffect.h"
 #include "Net/UnrealNetwork.h"
 #include "Core/GSGameplayTags.h"
+#include "DataAssets/GSStationDataAsset.h"
 
 AGSUtilityStation::AGSUtilityStation()
 {
@@ -37,6 +38,18 @@ void AGSUtilityStation::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Cargar configuración e hitbox dinámicamente desde el Data Asset
+	if (StationData)
+	{
+		EffectsToApply = StationData->StationDetails.EffectsToApply;
+		AttributeSets = StationData->StationDetails.AttributeSets;
+
+		if (StationVolume)
+		{
+			StationVolume->SetBoxExtent(StationData->StationDetails.HitBoxSize, true);
+		}
+	}
+
 	if (AbilitySystemComponent)
 	{
 		AbilitySystemComponent->InitAbilityActorInfo(this, this);
@@ -50,6 +63,7 @@ void AGSUtilityStation::BeginPlay()
 			}
 		}
 	}
+
 
 	if (StationVolume)
 	{
