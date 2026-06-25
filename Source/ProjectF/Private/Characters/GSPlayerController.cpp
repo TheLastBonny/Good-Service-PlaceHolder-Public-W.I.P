@@ -1,9 +1,12 @@
-#include "GSPlayerController.h"
+#include "Characters/GSPlayerController.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include "InputAction.h"
-#include "GSPlayerInterface.h"
+#include "Characters/GSPlayerInterface.h"
+#include "Input/GSInputConfig.h"
+#include "Engine/LocalPlayer.h"
+#include "GameFramework/Pawn.h"
 
 AGSPlayerController::AGSPlayerController()
 {
@@ -13,8 +16,6 @@ void AGSPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	UE_LOG(LogTemp, Warning, TEXT("=== AGSPlayerController::BeginPlay ==="));
-
 	if (IsLocalController())
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
@@ -22,7 +23,6 @@ void AGSPlayerController::BeginPlay()
 			if (InputMappingContext)
 			{
 				Subsystem->AddMappingContext(InputMappingContext, 0);
-				UE_LOG(LogTemp, Warning, TEXT("Successfully added InputMappingContext: %s"), *InputMappingContext->GetName());
 			}
 			else
 			{
@@ -40,15 +40,12 @@ void AGSPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
-	UE_LOG(LogTemp, Warning, TEXT("=== AGSPlayerController::SetupInputComponent ==="));
-
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent))
 	{
 		if (MoveAction)
 		{
 			EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AGSPlayerController::HandleMove);
 			EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Completed, this, &AGSPlayerController::HandleMove);
-			UE_LOG(LogTemp, Warning, TEXT("Bound MoveAction: %s"), *MoveAction->GetName());
 		}
 		else
 		{
@@ -59,11 +56,26 @@ void AGSPlayerController::SetupInputComponent()
 		{
 			EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &AGSPlayerController::HandleJumpTriggered);
 			EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &AGSPlayerController::HandleJumpCompleted);
-			UE_LOG(LogTemp, Warning, TEXT("Bound JumpAction: %s"), *JumpAction->GetName());
 		}
 		else
 		{
 			UE_LOG(LogTemp, Warning, TEXT("JumpAction is NULL!"));
+		}
+
+		if (InputConfig)
+		{
+			for (const FGSInputAction& Action : InputConfig->AbilityInputActions)
+			{
+				if (Action.InputAction && Action.InputTag.IsValid())
+				{
+					EnhancedInputComponent->BindAction(Action.InputAction, ETriggerEvent::Started, this, &AGSPlayerController::Input_AbilityActivate, Action.InputTag);
+					EnhancedInputComponent->BindAction(Action.InputAction, ETriggerEvent::Completed, this, &AGSPlayerController::Input_AbilityReleased, Action.InputTag);
+				}
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("InputConfig is NULL in GSPlayerController!"));
 		}
 	}
 	else
@@ -76,9 +88,6 @@ void AGSPlayerController::HandleMove(const FInputActionValue& Value)
 {
 	FVector2D MoveVector = Value.Get<FVector2D>();
 	APawn* ControlledPawn = GetPawn();
-	
-	UE_LOG(LogTemp, Warning, TEXT("AGSPlayerController::HandleMove called. Vector: X=%f, Y=%f. Pawn: %s"), 
-		MoveVector.X, MoveVector.Y, ControlledPawn ? *ControlledPawn->GetName() : TEXT("NULL"));
 
 	if (ControlledPawn)
 	{
@@ -96,8 +105,6 @@ void AGSPlayerController::HandleMove(const FInputActionValue& Value)
 void AGSPlayerController::HandleJumpTriggered()
 {
 	APawn* ControlledPawn = GetPawn();
-	UE_LOG(LogTemp, Warning, TEXT("AGSPlayerController::HandleJumpTriggered called. Pawn: %s"), 
-		ControlledPawn ? *ControlledPawn->GetName() : TEXT("NULL"));
 
 	if (ControlledPawn)
 	{
@@ -115,8 +122,6 @@ void AGSPlayerController::HandleJumpTriggered()
 void AGSPlayerController::HandleJumpCompleted()
 {
 	APawn* ControlledPawn = GetPawn();
-	UE_LOG(LogTemp, Warning, TEXT("AGSPlayerController::HandleJumpCompleted called. Pawn: %s"), 
-		ControlledPawn ? *ControlledPawn->GetName() : TEXT("NULL"));
 
 	if (ControlledPawn)
 	{
@@ -127,6 +132,30 @@ void AGSPlayerController::HandleJumpCompleted()
 		else
 		{
 			UE_LOG(LogTemp, Error, TEXT("Controlled Pawn (%s) does NOT implement IGSPlayerInterface!"), *ControlledPawn->GetName());
+		}
+	}
+}
+
+void AGSPlayerController::Input_AbilityActivate(FGameplayTag InputTag)
+{
+	APawn* ControlledPawn = GetPawn();
+	if (ControlledPawn)
+	{
+		if (ControlledPawn->Implements<UGSPlayerInterface>())
+		{
+			IGSPlayerInterface::Execute_RequestAbilityByTag(ControlledPawn, InputTag);
+		}
+	}
+}
+
+void AGSPlayerController::Input_AbilityReleased(FGameplayTag InputTag)
+{
+	APawn* ControlledPawn = GetPawn();
+	if (ControlledPawn)
+	{
+		if (ControlledPawn->Implements<UGSPlayerInterface>())
+		{
+			IGSPlayerInterface::Execute_RequestAbilityReleasedByTag(ControlledPawn, InputTag);
 		}
 	}
 }

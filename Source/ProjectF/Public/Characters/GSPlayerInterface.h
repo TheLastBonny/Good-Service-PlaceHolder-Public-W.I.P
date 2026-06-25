@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
+#include "GameplayTagContainer.h"
 #include "GSPlayerInterface.generated.h"
 
 UINTERFACE(MinimalAPI)
@@ -20,4 +21,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Player")
 	void RequestJump(bool bIsJumping);
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Player")
+	void RequestAbilityByTag(const FGameplayTag& InputTag);
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Player")
+	void RequestAbilityReleasedByTag(const FGameplayTag& InputTag);
 };

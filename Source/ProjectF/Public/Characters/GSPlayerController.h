@@ -2,10 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "GameplayTagContainer.h"
 #include "GSPlayerController.generated.h"
 
 class UInputMappingContext;
 class UInputAction;
+class UGSInputConfig;
 struct FInputActionValue;
 
 UCLASS()
@@ -29,8 +31,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> JumpAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UGSInputConfig> InputConfig;
+
 private:
 	void HandleMove(const FInputActionValue& Value);
 	void HandleJumpTriggered();
 	void HandleJumpCompleted();
+
+	void Input_AbilityActivate(FGameplayTag InputTag);
+	void Input_AbilityReleased(FGameplayTag InputTag);
 };
