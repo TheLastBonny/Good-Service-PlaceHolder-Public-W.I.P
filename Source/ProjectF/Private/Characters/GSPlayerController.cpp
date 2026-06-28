@@ -10,6 +10,7 @@
 
 AGSPlayerController::AGSPlayerController()
 {
+	ThrowArcHeight = 300.0f;
 }
 
 void AGSPlayerController::BeginPlay()
