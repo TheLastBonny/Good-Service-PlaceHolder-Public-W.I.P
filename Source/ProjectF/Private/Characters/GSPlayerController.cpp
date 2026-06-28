@@ -78,6 +78,11 @@ void AGSPlayerController::SetupInputComponent()
 		{
 			UE_LOG(LogTemp, Warning, TEXT("InputConfig is NULL in GSPlayerController!"));
 		}
+
+		if (AdjustArcAction)
+		{
+			EnhancedInputComponent->BindAction(AdjustArcAction, ETriggerEvent::Triggered, this, &AGSPlayerController::HandleAdjustArc);
+		}
 	}
 	else
 	{
@@ -159,4 +164,10 @@ void AGSPlayerController::Input_AbilityReleased(FGameplayTag InputTag)
 			IGSPlayerInterface::Execute_RequestAbilityReleasedByTag(ControlledPawn, InputTag);
 		}
 	}
+}
+
+void AGSPlayerController::HandleAdjustArc(const FInputActionValue& Value)
+{
+	float AdjustValue = Value.Get<float>();
+	ThrowArcHeight = FMath::Clamp(ThrowArcHeight + (AdjustValue * 50.0f), 0.0f, 1000.0f);
 }

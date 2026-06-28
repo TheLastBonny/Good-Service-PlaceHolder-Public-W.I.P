@@ -37,10 +37,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UGSInputConfig> InputConfig;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> AdjustArcAction;
+
 private:
 	void HandleMove(const FInputActionValue& Value);
 	void HandleJumpTriggered();
 	void HandleJumpCompleted();
+	void HandleAdjustArc(const FInputActionValue& Value);
 
 	void Input_AbilityActivate(FGameplayTag InputTag);
 	void Input_AbilityReleased(FGameplayTag InputTag);
