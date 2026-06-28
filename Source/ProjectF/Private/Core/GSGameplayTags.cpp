@@ -3,6 +3,7 @@
 namespace GSGameplayTags
 {
 	UE_DEFINE_GAMEPLAY_TAG(Input_Action_Skill1, "Input.Action.Skill1");
+	UE_DEFINE_GAMEPLAY_TAG(Input_Action_Skill2, "Input.Action.Skill2");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_KineticRope, "Ability.KineticRope");
 	UE_DEFINE_GAMEPLAY_TAG(State_Dead, "State.Dead");
 	UE_DEFINE_GAMEPLAY_TAG(State_Cooked, "State.Cooked");
