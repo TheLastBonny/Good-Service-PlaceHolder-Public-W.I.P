@@ -9,6 +9,7 @@
 #include "GameplayEffectTypes.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "GameFramework/PlayerState.h"
+#include "Core/GSGameplayTags.h"
 
 AGSPawn::AGSPawn()
 {
@@ -240,7 +241,16 @@ void AGSPawn::ProduceInput_Implementation(int32 SimTimeMs, FMoverInputCmdContext
 
 	CharacterInputs.bIsJumpPressed = bCachedJumpPressed;
 	CharacterInputs.bIsJumpJustPressed = bCachedJumpJustPressed;
-	CharacterInputs.OrientationIntent = MoveDirection;
+
+	if (AbilitySystemComponent && AbilitySystemComponent->HasMatchingGameplayTag(GSGameplayTags::State_Aiming))
+	{
+		CharacterInputs.OrientationIntent = GetControlRotation().Vector();
+	}
+	else
+	{
+		CharacterInputs.OrientationIntent = MoveDirection;
+	}
+
 	CharacterInputs.ControlRotation = GetControlRotation();
 
 	bCachedJumpJustPressed = false;

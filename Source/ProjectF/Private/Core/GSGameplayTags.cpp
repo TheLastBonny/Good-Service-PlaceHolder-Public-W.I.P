@@ -9,4 +9,8 @@ namespace GSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(State_Burned, "State.Burned");
 	UE_DEFINE_GAMEPLAY_TAG(State_Cooled, "State.Cooled");
 	UE_DEFINE_GAMEPLAY_TAG(State_Filled, "State.Filled");
+	UE_DEFINE_GAMEPLAY_TAG(State_Aiming, "State.Aiming");
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Grab, "Ability.Grab");
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Launch, "Ability.Launch");
+	UE_DEFINE_GAMEPLAY_TAG(State_HoldingItem, "State.HoldingItem");
 }

@@ -18,6 +18,9 @@ class PROJECTF_API AGSPlayerController : public APlayerController
 public:
 	AGSPlayerController();
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Launch")
+	float ThrowArcHeight;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
