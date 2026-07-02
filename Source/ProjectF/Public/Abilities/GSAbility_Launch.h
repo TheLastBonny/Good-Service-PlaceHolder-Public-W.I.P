@@ -13,10 +13,9 @@ public:
 	UGSAbility_Launch();
 
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+	virtual void InputReleased(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) override;
 
 protected:
-	UFUNCTION()
-	void OnInputReleased(float HeldTime);
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Launch")
 	float HoldThreshold;
@@ -32,6 +31,16 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Launch")
 	float DropForwardOffset;
+
+protected:
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Debug")
+	bool bShowDebugShape;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Debug")
+	FColor DebugColor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Debug")
+	float DebugLifeTime;
 
 private:
 	float ActivationTime;
