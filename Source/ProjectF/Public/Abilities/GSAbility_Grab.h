@@ -20,4 +20,14 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Grab")
 	float GrabForwardOffset;
+
+protected:
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Debug")
+	bool bShowDebugShape;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Debug")
+	FColor DebugColor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Debug")
+	float DebugLifeTime;
 };

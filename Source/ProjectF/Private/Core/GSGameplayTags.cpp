@@ -14,4 +14,7 @@ namespace GSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Grab, "Ability.Grab");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Launch, "Ability.Launch");
 	UE_DEFINE_GAMEPLAY_TAG(State_HoldingItem, "State.HoldingItem");
+	UE_DEFINE_GAMEPLAY_TAG(State_Catching, "State.Catching");
+	UE_DEFINE_GAMEPLAY_TAG(Data_MoneyAmount, "Data.MoneyAmount");
 }
+

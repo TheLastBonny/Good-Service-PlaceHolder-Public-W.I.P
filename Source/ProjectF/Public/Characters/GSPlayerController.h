@@ -21,8 +21,27 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Launch")
 	float ThrowArcHeight;
 
+	UPROPERTY(BlueprintReadWrite, Category = "Launch")
+	FVector LastAimTargetLocation;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Grab")
+	TObjectPtr<AActor> LastGrabbedActor;
+
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void ShowAimCursor();
+
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void HideAimCursor();
+
+	UFUNCTION(Server, Reliable)
+	void Server_Input_AbilityReleased(FGameplayTag InputTag, FVector ClientAimTarget);
+
+	UFUNCTION(Server, Reliable)
+	void Server_SetGrabbedActor(AActor* InActor);
+
 protected:
 	virtual void BeginPlay() override;
+	virtual void PlayerTick(float DeltaTime) override;
 	virtual void SetupInputComponent() override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
@@ -48,4 +67,5 @@ private:
 
 	void Input_AbilityActivate(FGameplayTag InputTag);
 	void Input_AbilityReleased(FGameplayTag InputTag);
+
 };

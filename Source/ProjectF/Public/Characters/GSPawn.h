@@ -59,6 +59,7 @@ protected:
 	FVector2D CachedMovementInput;
 	bool bCachedJumpPressed;
 	bool bCachedJumpJustPressed;
+	float TickLogTimer;
 
 	void OnWalkSpeedChanged(const struct FOnAttributeChangeData& Data);
 	void InitAbilityActorInfo();

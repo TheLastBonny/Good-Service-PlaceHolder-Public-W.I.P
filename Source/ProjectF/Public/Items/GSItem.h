@@ -19,10 +19,13 @@ public:
 	AGSItem();
 
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+	virtual void OnRep_AttachmentReplication() override;
+	virtual void OnRep_ReplicatedMovement() override;
 
 protected:
 	virtual void BeginPlay() override;
 
+public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
 
@@ -37,4 +40,3 @@ protected:
 
 	virtual void OnStateTagChanged(const FGameplayTag CallbackTag, int32 NewCount);
 };
-
