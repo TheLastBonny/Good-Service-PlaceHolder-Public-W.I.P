@@ -9,6 +9,10 @@
 #include "GameplayEffectTypes.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "GameFramework/PlayerState.h"
+#include "Core/GSGameplayTags.h"
+#include "Characters/GSPlayerController.h"
+#include "Components/GSGrabbableComponent.h"
+#include "Engine/OverlapResult.h"
 
 AGSPawn::AGSPawn()
 {
@@ -37,6 +41,7 @@ AGSPawn::AGSPawn()
 	CachedMovementInput = FVector2D::ZeroVector;
 	bCachedJumpPressed = false;
 	bCachedJumpJustPressed = false;
+	TickLogTimer = 0.0f;
 
 	SetReplicateMovement(false);
 	bReplicates = true;
@@ -49,6 +54,10 @@ UAbilitySystemComponent* AGSPawn::GetAbilitySystemComponent() const
 
 void AGSPawn::BeginPlay()
 {
+	FString NetRole = HasAuthority() ? TEXT("SERVER") : TEXT("CLIENT");
+	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn::BeginPlay: Pawn %s, Location: %s"), 
+		*NetRole, *GetName(), *GetActorLocation().ToString());
+
 	if (CapsuleComponent)
 	{
 		CapsuleComponent->SetMobility(EComponentMobility::Movable);
@@ -56,6 +65,7 @@ void AGSPawn::BeginPlay()
 		CapsuleComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		CapsuleComponent->SetSimulatePhysics(false);
 		CapsuleComponent->SetUpdateKinematicFromSimulation(false);
+		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn::BeginPlay: Configured CapsuleComponent: Profile = Pawn, Enabled = QueryAndPhysics"), *NetRole);
 	}
 
 	Super::BeginPlay();
@@ -63,6 +73,9 @@ void AGSPawn::BeginPlay()
 
 void AGSPawn::PossessedBy(AController* NewController)
 {
+	FString NetRole = HasAuthority() ? TEXT("SERVER") : TEXT("CLIENT");
+	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn::PossessedBy: Pawn %s possessed by controller %s"), 
+		*NetRole, *GetName(), NewController ? *NewController->GetName() : TEXT("NULL"));
 	Super::PossessedBy(NewController);
 	InitAbilityActorInfo();
 }
@@ -151,32 +164,114 @@ void AGSPawn::RequestJump_Implementation(bool bIsJumping)
 
 void AGSPawn::RequestAbilityByTag_Implementation(const FGameplayTag& InputTag)
 {
+	FString NetRole = HasAuthority() ? TEXT("SERVER") : TEXT("CLIENT");
+	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn::RequestAbilityByTag called. Pawn: %s, InputTag: %s"), 
+		*NetRole, *GetName(), *InputTag.ToString());
+
 	if (AbilitySystemComponent)
 	{
 		const FGameplayTag AbilityTag = GetAbilityTagForSlot(InputTag);
-		if (!AbilityTag.IsValid()) { return; }
+		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: InputTag [%s] maps to AbilityTag [%s]"), 
+			*NetRole, *InputTag.ToString(), *AbilityTag.ToString());
 
-		FGameplayTagContainer TagContainer(AbilityTag);
-		AbilitySystemComponent->TryActivateAbilitiesByTag(TagContainer);
+		if (!AbilityTag.IsValid()) 
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: AbilityTag is INVALID!"), *NetRole);
+			return; 
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: Listing all activatable abilities on ASC:"), *NetRole);
+		int32 Index = 0;
+		for (const FGameplayAbilitySpec& Spec : AbilitySystemComponent->GetActivatableAbilities())
+		{
+			if (Spec.Ability)
+			{
+				FString SpecTags = TEXT("");
+				for (const FGameplayTag& Tag : Spec.Ability->GetAssetTags())
+				{
+					SpecTags += Tag.ToString() + TEXT(", ");
+				}
+				for (const FGameplayTag& Tag : Spec.Ability->AbilityTags)
+				{
+					SpecTags += Tag.ToString() + TEXT(", ");
+				}
+				UE_LOG(LogTemp, Warning, TEXT("  [%d] Ability: %s, Handle: %s, IsActive: %d, Tags: [%s]"), 
+					Index++, *Spec.Ability->GetName(), *Spec.Handle.ToString(), Spec.IsActive(), *SpecTags);
+			}
+		}
+
+		FScopedAbilityListLock AbilityScopeLock(*AbilitySystemComponent);
+
+		int32 MatchCount = 0;
+		for (FGameplayAbilitySpec& Spec : AbilitySystemComponent->GetActivatableAbilities())
+		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			if (Spec.Ability && (Spec.Ability->GetAssetTags().HasTag(AbilityTag) || Spec.Ability->AbilityTags.HasTag(AbilityTag)))
+			{
+				MatchCount++;
+				UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: Found matching ability spec: %s (Handle: %s). IsActive: %d. Calling AbilitySpecInputPressed."),
+					*NetRole, *Spec.Ability->GetName(), *Spec.Handle.ToString(), Spec.IsActive());
+				AbilitySystemComponent->AbilitySpecInputPressed(Spec);
+				if (!Spec.IsActive())
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: Activating ability spec %s"), *NetRole, *Spec.Handle.ToString());
+					AbilitySystemComponent->TryActivateAbility(Spec.Handle);
+				}
+			}
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		}
+		if (MatchCount == 0)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: No matching activatable ability found on ASC for tag %s"), *NetRole, *AbilityTag.ToString());
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: RequestAbilityByTag: ASC is NULL!"), *NetRole);
 	}
 }
 
 void AGSPawn::RequestAbilityReleasedByTag_Implementation(const FGameplayTag& InputTag)
 {
+	FString NetRole = HasAuthority() ? TEXT("SERVER") : TEXT("CLIENT");
+	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn::RequestAbilityReleasedByTag called. Pawn: %s, InputTag: %s"), 
+		*NetRole, *GetName(), *InputTag.ToString());
+
 	if (AbilitySystemComponent)
 	{
 		const FGameplayTag AbilityTag = GetAbilityTagForSlot(InputTag);
-		if (!AbilityTag.IsValid()) { return; }
+		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: Released Slot Tag [%s] mapped to Ability Tag [%s]"), 
+			*NetRole, *InputTag.ToString(), *AbilityTag.ToString());
+
+		if (!AbilityTag.IsValid()) 
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: AbilityTag for Slot Tag [%s] is INVALID!"), *NetRole, *InputTag.ToString());
+			return; 
+		}
 
 		FScopedAbilityListLock AbilityScopeLock(*AbilitySystemComponent);
 
+		int32 MatchCount = 0;
 		for (FGameplayAbilitySpec& Spec : AbilitySystemComponent->GetActivatableAbilities())
 		{
-			if (Spec.Ability && Spec.Ability->GetAssetTags().HasTag(AbilityTag))
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			if (Spec.Ability && (Spec.Ability->GetAssetTags().HasTag(AbilityTag) || Spec.Ability->AbilityTags.HasTag(AbilityTag)))
 			{
+				MatchCount++;
+				UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: Found matching ability spec for release: %s. IsActive = %d. Calling AbilitySpecInputReleased."),
+					*NetRole, *Spec.Ability->GetName(), Spec.IsActive());
 				AbilitySystemComponent->AbilitySpecInputReleased(Spec);
 			}
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
+		if (MatchCount == 0)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: No matching activatable ability found on ASC for release tag %s"), *NetRole, *AbilityTag.ToString());
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: RequestAbilityReleasedByTag: ASC is NULL!"), *NetRole);
 	}
 }
 
@@ -240,7 +335,30 @@ void AGSPawn::ProduceInput_Implementation(int32 SimTimeMs, FMoverInputCmdContext
 
 	CharacterInputs.bIsJumpPressed = bCachedJumpPressed;
 	CharacterInputs.bIsJumpJustPressed = bCachedJumpJustPressed;
-	CharacterInputs.OrientationIntent = MoveDirection;
+
+	if (AbilitySystemComponent && AbilitySystemComponent->HasMatchingGameplayTag(GSGameplayTags::State_Aiming))
+	{
+		FVector AimDirection = GetActorForwardVector();
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			FHitResult HitResult;
+			if (PC->GetHitResultUnderCursor(ECC_Visibility, false, HitResult))
+			{
+				FVector Dir = HitResult.Location - GetActorLocation();
+				Dir.Z = 0.0f;
+				if (Dir.Normalize())
+				{
+					AimDirection = Dir;
+				}
+			}
+		}
+		CharacterInputs.OrientationIntent = AimDirection;
+	}
+	else
+	{
+		CharacterInputs.OrientationIntent = MoveDirection;
+	}
+
 	CharacterInputs.ControlRotation = GetControlRotation();
 
 	bCachedJumpJustPressed = false;
