@@ -21,6 +21,18 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Grab")
 	float GrabForwardOffset;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Grab | Stacking")
+	float StackSpacingOffset;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Grab | Stacking")
+	bool bUseDynamicBoundsHeight;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Grab | Stacking")
+	float DefaultItemHeight;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Grab | Stacking")
+	float InitialStackOffsetZ;
+
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Debug")
 	bool bShowDebugShape;

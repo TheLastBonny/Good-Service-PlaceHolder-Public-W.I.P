@@ -47,7 +47,7 @@ void UGSMoneyAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCal
 			const float NewMoney = GetMoney() + MultipliedEarned;
 			SetMoney(FMath::Max(NewMoney, 0.f));
 
-			// Notify GameState to fire its delegate for UI binding
+
 			if (AActor* OwningActor = GetOwningActor())
 			{
 				if (AGSGameState* GSGameState = Cast<AGSGameState>(OwningActor))

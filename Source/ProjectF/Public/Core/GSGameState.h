@@ -33,10 +33,10 @@ public:
 	virtual void PostInitializeComponents() override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	// IAbilitySystemInterface
+
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
-	// Delegates for UI / gameplay bindings
+
 	UPROPERTY(BlueprintAssignable, Category = "Game|Money")
 	FOnMoneyChangedSignature OnMoneyChanged;
 
@@ -49,7 +49,7 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Game|Cycle")
 	FOnRemainingTimeChangedSignature OnRemainingTimeChanged;
 
-	// Money Getters & Helpers
+
 	UFUNCTION(BlueprintPure, Category = "Game|Money")
 	int32 GetMoney() const;
 
@@ -59,7 +59,7 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Game|Money")
 	void AddMoneyDirectly(float BaseAmount);
 
-	// Game Cycle Getters & Setters
+
 	UFUNCTION(BlueprintPure, Category = "Game|Cycle")
 	EGSGamePhase GetCurrentPhase() const { return CurrentPhase; }
 
@@ -78,7 +78,7 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Game|Cycle")
 	void StopRoundTimer();
 
-	// NPC Manager Registration
+
 	UFUNCTION(BlueprintCallable, Category = "Game|NPCs")
 	void RegisterNPCManager(AGSNPCManager* Manager);
 
@@ -92,15 +92,15 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
 	TObjectPtr<UGSMoneyAttributeSet> MoneyAttributeSet;
 
-	// The current round phase (replicated)
+
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentPhase, VisibleAnywhere, BlueprintReadOnly, Category = "Game|Cycle")
 	EGSGamePhase CurrentPhase;
 
-	// Remaining round time in seconds (replicated)
+
 	UPROPERTY(ReplicatedUsing = OnRep_RemainingTime, VisibleAnywhere, BlueprintReadOnly, Category = "Game|Cycle")
 	float RemainingTime;
 
-	// Reference to the NPC spawner manager
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Game|NPCs")
 	TObjectPtr<AGSNPCManager> NPCManager;
 

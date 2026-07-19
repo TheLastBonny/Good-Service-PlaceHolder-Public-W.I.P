@@ -17,6 +17,7 @@ UGSAbility_Launch::UGSAbility_Launch()
 	MaxThrowDistance = 600.0f;
 	DropForwardOffset = 90.0f;
 	ActivationTime = 0.0f;
+	DispersedThrowSpreadAngle = 30.0f;
 
 	bShowDebugShape = false;
 	DebugColor = FColor::Orange;
@@ -28,11 +29,11 @@ void UGSAbility_Launch::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 
 	FString NetRole = ActorInfo->IsNetAuthority() ? TEXT("SERVER") : TEXT("CLIENT");
-	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch::ActivateAbility started."), *NetRole);
+	
 
 	if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
 	{
-		UE_LOG(LogTemp, Error, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: CommitAbility failed! Ending ability."), *NetRole);
+		
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
@@ -42,7 +43,7 @@ void UGSAbility_Launch::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
 
 	if (!AvatarActor || !ASC)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: AvatarActor or ASC is NULL! Ending ability."), *NetRole);
+		
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
@@ -50,36 +51,75 @@ void UGSAbility_Launch::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
 	AActor* HeldItem = nullptr;
 	UGSGrabbableComponent* GrabComp = nullptr;
 	AGSPlayerController* PC = Cast<AGSPlayerController>(ActorInfo->PlayerController.Get());
-	if (PC)
+
+	if (AvatarActor)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: PC found. PC->LastGrabbedActor = %s"), 
-			*NetRole, PC->LastGrabbedActor ? *PC->LastGrabbedActor->GetName() : TEXT("NULL"));
+		TArray<AActor*> AttachedActors;
+		AvatarActor->GetAttachedActors(AttachedActors);
+		AActor* TopHeldItem = nullptr;
+		UGSGrabbableComponent* TopGrabComp = nullptr;
+		float MaxZOffset = -1.0f;
+
+		for (AActor* AttachedActor : AttachedActors)
+		{
+			if (AttachedActor)
+			{
+				UGSGrabbableComponent* TempGrabComp = AttachedActor->FindComponentByClass<UGSGrabbableComponent>();
+				if (TempGrabComp && TempGrabComp->IsGrabbed())
+				{
+					float CurrentZ = AttachedActor->GetRootComponent() ? AttachedActor->GetRootComponent()->GetRelativeLocation().Z : 0.0f;
+					if (CurrentZ > MaxZOffset)
+					{
+						MaxZOffset = CurrentZ;
+						TopHeldItem = AttachedActor;
+						TopGrabComp = TempGrabComp;
+					}
+				}
+			}
+		}
+
+		if (TopHeldItem)
+		{
+			HeldItem = TopHeldItem;
+			GrabComp = TopGrabComp;
+			if (PC && PC->LastGrabbedActor != HeldItem)
+			{
+				PC->LastGrabbedActor = HeldItem;
+				if (!PC->HasAuthority())
+				{
+					PC->Server_SetGrabbedActor(HeldItem);
+				}
+			}
+		}
+	}
+
+	if (!HeldItem && PC)
+	{
 		if (PC->LastGrabbedActor)
 		{
 			HeldItem = PC->LastGrabbedActor;
 			GrabComp = HeldItem->FindComponentByClass<UGSGrabbableComponent>();
 		}
 	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: PlayerController was NULL!"), *NetRole);
-	}
 
 	if (!HeldItem || !GrabComp)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: HeldItem or GrabComp is NULL! Ending ability. HeldItem = %s, GrabComp = %s"), 
-			*NetRole, HeldItem ? *HeldItem->GetName() : TEXT("NULL"), GrabComp ? *GrabComp->GetName() : TEXT("NULL"));
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-		return;
+
+
+		if (!ActorInfo->IsNetAuthority())
+		{
+			EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+			return;
+		}
 	}
 
 	if (PC)
 	{
 		PC->ShowAimCursor();
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Called ShowAimCursor on PC."), *NetRole);
+		
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Aiming mode started. Adding tag State.Aiming."), *NetRole);
+	
 	ASC->AddLooseGameplayTag(FGameplayTag::RequestGameplayTag(TEXT("State.Aiming")), 1);
 	ActivationTime = GetWorld()->GetTimeSeconds();
 }
@@ -87,14 +127,14 @@ void UGSAbility_Launch::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
 void UGSAbility_Launch::InputReleased(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo)
 {
 	FString NetRole = ActorInfo->IsNetAuthority() ? TEXT("SERVER") : TEXT("CLIENT");
-	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch::InputReleased override called."), *NetRole);
+	
 
 	AActor* AvatarActor = ActorInfo->AvatarActor.Get();
 	UAbilitySystemComponent* ASC = ActorInfo->AbilitySystemComponent.Get();
 
 	if (!AvatarActor || !ASC)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: InputReleased - AvatarActor or ASC is NULL. Ending ability."), *NetRole);
+		
 		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
 		return;
 	}
@@ -102,192 +142,238 @@ void UGSAbility_Launch::InputReleased(const FGameplayAbilitySpecHandle Handle, c
 	AGSPlayerController* PC = Cast<AGSPlayerController>(ActorInfo->PlayerController.Get());
 	if (PC)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Calling HideAimCursor on PC."), *NetRole);
+		
 		PC->HideAimCursor();
 	}
 
 	float HeldTime = GetWorld()->GetTimeSeconds() - ActivationTime;
-	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: InputReleased logic fired. HeldTime = %f (Threshold: %f)"), *NetRole, HeldTime, HoldThreshold);
+	
+	
 
-	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Removing tag State.Aiming."), *NetRole);
+	
 	ASC->RemoveLooseGameplayTag(FGameplayTag::RequestGameplayTag(TEXT("State.Aiming")), 1);
 
-	AActor* HeldItem = nullptr;
-	UGSGrabbableComponent* GrabComp = nullptr;
+	TArray<AActor*> GrabbedItems;
+	TArray<UGSGrabbableComponent*> GrabComps;
+
+	if (AvatarActor)
+	{
+		TArray<AActor*> AttachedActors;
+		AvatarActor->GetAttachedActors(AttachedActors);
+		for (AActor* AttachedActor : AttachedActors)
+		{
+			if (AttachedActor)
+			{
+				UGSGrabbableComponent* TempGrabComp = AttachedActor->FindComponentByClass<UGSGrabbableComponent>();
+				if (TempGrabComp && TempGrabComp->IsGrabbed())
+				{
+					GrabbedItems.Add(AttachedActor);
+					GrabComps.Add(TempGrabComp);
+				}
+			}
+		}
+	}
+
+	// Sort GrabbedItems and GrabComps by their relative location Z in ascending order (bottom of stack to top of stack)
+	for (int32 i = 0; i < GrabbedItems.Num() - 1; ++i)
+	{
+		for (int32 j = i + 1; j < GrabbedItems.Num(); ++j)
+		{
+			float Zi = GrabbedItems[i]->GetRootComponent() ? GrabbedItems[i]->GetRootComponent()->GetRelativeLocation().Z : 0.0f;
+			float Zj = GrabbedItems[j]->GetRootComponent() ? GrabbedItems[j]->GetRootComponent()->GetRelativeLocation().Z : 0.0f;
+			if (Zi > Zj)
+			{
+				GrabbedItems.Swap(i, j);
+				GrabComps.Swap(i, j);
+			}
+		}
+	}
+
+	if (GrabbedItems.Num() == 0)
+	{
+		if (!ActorInfo->IsNetAuthority())
+		{
+			EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+			return;
+		}
+	}
+
+	bool bThrowAll = false;
 	if (PC)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Fetching item from PC->LastGrabbedActor: %s"), 
-			*NetRole, PC->LastGrabbedActor ? *PC->LastGrabbedActor->GetName() : TEXT("NULL"));
-		if (PC->LastGrabbedActor)
-		{
-			HeldItem = PC->LastGrabbedActor;
-			GrabComp = HeldItem->FindComponentByClass<UGSGrabbableComponent>();
-		}
+		bThrowAll = PC->bLastReleaseWasSpecial;
 	}
 
-	if (HeldItem && GrabComp)
+	TArray<AActor*> ItemsToThrow;
+	TArray<UGSGrabbableComponent*> CompsToThrow;
+
+	if (bThrowAll)
 	{
-		HeldItem->SetInstigator(Cast<APawn>(AvatarActor));
+		ItemsToThrow = GrabbedItems;
+		CompsToThrow = GrabComps;
+	}
+	else if (GrabbedItems.Num() > 0)
+	{
+		ItemsToThrow.Add(GrabbedItems.Last());
+		CompsToThrow.Add(GrabComps.Last());
+	}
 
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Detaching and releasing item: %s. Previous IsGrabbed: %d"), 
-			*NetRole, *HeldItem->GetName(), GrabComp->IsGrabbed());
-		
-		GrabComp->SetGrabbed(false);
+	int32 TotalItems = ItemsToThrow.Num();
 
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Removing State.HoldingItem loose tag from ASC."), *NetRole);
-		ASC->RemoveLooseGameplayTag(FGameplayTag::RequestGameplayTag(TEXT("State.HoldingItem")), 1);
+	for (int32 i = 0; i < TotalItems; ++i)
+	{
+		AActor* HeldItem = ItemsToThrow[i];
+		UGSGrabbableComponent* GrabComp = CompsToThrow[i];
 
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Detaching %s from actor."), *NetRole, *HeldItem->GetName());
-		HeldItem->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-		
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Enabling actor collision on %s."), *NetRole, *HeldItem->GetName());
-		HeldItem->SetActorEnableCollision(true);
-
-		UPrimitiveComponent* PrimitiveRoot = Cast<UPrimitiveComponent>(HeldItem->GetRootComponent());
-		if (!PrimitiveRoot)
+		if (HeldItem && GrabComp)
 		{
-			PrimitiveRoot = HeldItem->FindComponentByClass<UPrimitiveComponent>();
-			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Fallback used to find Primitive Component: %s"), 
-				*NetRole, PrimitiveRoot ? *PrimitiveRoot->GetName() : TEXT("NULL"));
-		}
+			HeldItem->SetInstigator(Cast<APawn>(AvatarActor));
 
-		if (PrimitiveRoot)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Restoring collision profile (%s) and enabled (%d) on PrimitiveRoot %s"), 
-				*NetRole, *GrabComp->OriginalCollisionProfileName.ToString(), (int32)GrabComp->OriginalCollisionEnabled.GetValue(), *PrimitiveRoot->GetName());
-			PrimitiveRoot->SetCollisionProfileName(GrabComp->OriginalCollisionProfileName);
-			PrimitiveRoot->SetCollisionEnabled(GrabComp->OriginalCollisionEnabled);
-		}
-
-		if (HeldTime < HoldThreshold)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Drop executed (HeldTime < HoldThreshold)."), *NetRole);
-
-			FVector LaunchStartLoc = HeldItem->GetActorLocation();
-			FVector DropLoc = AvatarActor->GetActorLocation() + (AvatarActor->GetActorForwardVector() * DropForwardOffset);
 			
-			// Trace down to find the ground or nearest surface
-			FVector TraceStart = DropLoc + FVector(0.0f, 0.0f, 100.0f);
-			FVector TraceEnd = DropLoc - FVector(0.0f, 0.0f, 500.0f);
-			FHitResult DropHit;
-			FCollisionQueryParams TraceParams;
-			TraceParams.AddIgnoredActor(AvatarActor);
-			TraceParams.AddIgnoredActor(HeldItem);
+			
+			GrabComp->SetGrabbed(false);
 
-			if (GetWorld()->LineTraceSingleByChannel(DropHit, TraceStart, TraceEnd, ECC_Visibility, TraceParams))
+			
+			ASC->RemoveLooseGameplayTag(FGameplayTag::RequestGameplayTag(TEXT("State.HoldingItem")), 1);
+
+			
+			HeldItem->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+			
+			
+			HeldItem->SetActorEnableCollision(true);
+
+			UPrimitiveComponent* PrimitiveRoot = Cast<UPrimitiveComponent>(HeldItem->GetRootComponent());
+			if (!PrimitiveRoot)
 			{
-				DropLoc.Z = DropHit.Location.Z + 10.0f; // Add a small offset to prevent clipping
+				PrimitiveRoot = HeldItem->FindComponentByClass<UPrimitiveComponent>();
+				
+			}
+
+			if (PrimitiveRoot)
+			{
+				
+				PrimitiveRoot->SetCollisionProfileName(GrabComp->OriginalCollisionProfileName);
+				PrimitiveRoot->SetCollisionEnabled(GrabComp->OriginalCollisionEnabled);
+			}
+
+			// Calculate launch direction
+			FVector BaseTargetLoc = PC ? PC->LastAimTargetLocation : (AvatarActor->GetActorLocation() + AvatarActor->GetActorForwardVector() * MaxThrowDistance);
+			FVector Dir = BaseTargetLoc - AvatarActor->GetActorLocation();
+			Dir.Z = 0.0f;
+			float Distance = Dir.Size();
+			if (Distance > 0.0f)
+			{
+				Dir.Normalize();
 			}
 			else
 			{
-				// Fallback to ground level relative to character
-				DropLoc.Z = AvatarActor->GetActorLocation().Z - 90.0f;
+				Dir = AvatarActor->GetActorForwardVector();
 			}
+			float ClampedDistance = FMath::Clamp(Distance, MinThrowDistance, MaxThrowDistance);
 
-			if (GrabComp)
+			// Calculate dispersed direction
+			float SpreadAngle = DispersedThrowSpreadAngle;
+			float Angle = 0.0f;
+			if (TotalItems > 1)
 			{
-				GrabComp->LaunchKinematic(LaunchStartLoc, DropLoc, 0.0f, 0.2f);
+				Angle = -SpreadAngle / 2.0f + (i * (SpreadAngle / (TotalItems - 1)));
 			}
-			else if (ActorInfo->IsNetAuthority())
+			FVector DispersedDir = Dir.RotateAngleAxis(Angle, FVector::UpVector);
+			FVector DispersedTarget = AvatarActor->GetActorLocation() + (DispersedDir * ClampedDistance);
+
+			FVector LaunchStartLoc = AvatarActor->GetActorLocation() + (DispersedDir * DropForwardOffset) + FVector(0.0f, 0.0f, 30.0f);
+
+			if (HeldTime < HoldThreshold)
 			{
-				HeldItem->SetActorLocation(DropLoc);
-			}
-			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Item location set to: %s"), *NetRole, *DropLoc.ToString());
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Throw executed (HeldTime >= HoldThreshold)."), *NetRole);
-
-			if (GrabComp->ThrowMontage && ActorInfo->AnimInstance.IsValid())
-			{
-				UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Playing throw montage."), *NetRole);
-				ActorInfo->AnimInstance->Montage_Play(GrabComp->ThrowMontage);
-			}
-
-			FVector LaunchDirection = AvatarActor->GetActorForwardVector();
-			float LaunchZ = 300.0f;
-
-			if (PC)
-			{
-				FVector TargetLoc = PC->LastAimTargetLocation;
-				UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Using Target Location from PC: %s"), *NetRole, *TargetLoc.ToString());
-
-				FVector Dir = TargetLoc - AvatarActor->GetActorLocation();
-				Dir.Z = 0.0f;
-				
-				float Distance = Dir.Size();
-				if (Distance > 0.0f)
+				FVector DropLoc = AvatarActor->GetActorLocation() + (DispersedDir * DropForwardOffset);
+				FVector TraceStart = DropLoc + FVector(0.0f, 0.0f, 100.0f);
+				FVector TraceEnd = DropLoc - FVector(0.0f, 0.0f, 500.0f);
+				FHitResult DropHit;
+				FCollisionQueryParams TraceParams;
+				TraceParams.AddIgnoredActor(AvatarActor);
+				for (AActor* ItemToIgnore : GrabbedItems)
 				{
-					Dir.Normalize();
-					LaunchDirection = Dir;
+					TraceParams.AddIgnoredActor(ItemToIgnore);
 				}
 
-				float ClampedDistance = FMath::Clamp(Distance, MinThrowDistance, MaxThrowDistance);
-				float SpeedFraction = ClampedDistance / MaxThrowDistance;
-				float ScaledSpeed = FMath::Lerp(GrabComp->ThrowSpeed * 0.4f, GrabComp->ThrowSpeed, SpeedFraction);
+				if (GetWorld()->LineTraceSingleByChannel(DropHit, TraceStart, TraceEnd, ECC_Visibility, TraceParams))
+				{
+					DropLoc.Z = DropHit.Location.Z + 10.0f;
+				}
+				else
+				{
+					DropLoc.Z = AvatarActor->GetActorLocation().Z - 90.0f;
+				}
 
-				LaunchZ = GrabComp->ThrowArcHeight;
-
-				FVector LaunchStartLoc = AvatarActor->GetActorLocation() + (LaunchDirection * DropForwardOffset) + FVector(0.0f, 0.0f, 30.0f);
-				
 				if (GrabComp)
 				{
-					float HorizontalDistance = FVector::Dist(LaunchStartLoc, TargetLoc);
-					// Scale the duration using the estimated 3D path length and the distance-scaled speed
-					float EstimatedPathLength = HorizontalDistance + (1.5f * LaunchZ);
-					float ThrowDuration = EstimatedPathLength / ScaledSpeed;
-					if (ThrowDuration < 0.2f) ThrowDuration = 0.2f;
-					if (ThrowDuration > 3.0f) ThrowDuration = 3.0f;
+					GrabComp->LaunchKinematic(LaunchStartLoc, DropLoc, 0.0f, 0.2f);
+				}
+				else if (ActorInfo->IsNetAuthority())
+				{
+					HeldItem->SetActorLocation(DropLoc);
+				}
+			}
+			else
+			{
+				if (GrabComp->ThrowMontage && ActorInfo->AnimInstance.IsValid() && i == TotalItems - 1)
+				{
+					ActorInfo->AnimInstance->Montage_Play(GrabComp->ThrowMontage);
+				}
 
-					GrabComp->LaunchKinematic(LaunchStartLoc, TargetLoc, LaunchZ, ThrowDuration);
+				float ScaledSpeed = FMath::Lerp(GrabComp->ThrowSpeed * 0.4f, GrabComp->ThrowSpeed, ClampedDistance / MaxThrowDistance);
+				float LaunchZ = GrabComp->ThrowArcHeight;
+				float HorizontalDistance = FVector::Dist(LaunchStartLoc, DispersedTarget);
+				float EstimatedPathLength = HorizontalDistance + (1.5f * LaunchZ);
+				float ThrowDuration = EstimatedPathLength / ScaledSpeed;
+				if (ThrowDuration < 0.2f) ThrowDuration = 0.2f;
+				if (ThrowDuration > 3.0f) ThrowDuration = 3.0f;
+
+				if (GrabComp)
+				{
+					GrabComp->LaunchKinematic(LaunchStartLoc, DispersedTarget, LaunchZ, ThrowDuration);
 				}
 				else if (ActorInfo->IsNetAuthority())
 				{
 					HeldItem->SetActorLocation(LaunchStartLoc);
 				}
 			}
-			else
-			{
-				FVector LaunchStartLoc = AvatarActor->GetActorLocation() + (LaunchDirection * DropForwardOffset) + FVector(0.0f, 0.0f, 30.0f);
-				LaunchZ = GrabComp->ThrowArcHeight;
-				
-				if (GrabComp)
-				{
-					FVector TargetLoc = LaunchStartLoc + (LaunchDirection * MaxThrowDistance);
-					float EstimatedPathLength = MaxThrowDistance + (1.5f * LaunchZ);
-					float ThrowDuration = EstimatedPathLength / GrabComp->ThrowSpeed;
-					if (ThrowDuration < 0.2f) ThrowDuration = 0.2f;
-					if (ThrowDuration > 3.0f) ThrowDuration = 3.0f;
+		}
+	}
 
-					GrabComp->LaunchKinematic(LaunchStartLoc, TargetLoc, LaunchZ, ThrowDuration);
-				}
-				else if (ActorInfo->IsNetAuthority())
+	if (PC && !bThrowAll)
+	{
+		// Find new top-most item to update LastGrabbedActor
+		TArray<AActor*> RemainingAttached;
+		AvatarActor->GetAttachedActors(RemainingAttached);
+		AActor* NewTopItem = nullptr;
+		float MaxZ = -1.0f;
+		for (AActor* Attached : RemainingAttached)
+		{
+			if (Attached)
+			{
+				UGSGrabbableComponent* TempGrabComp = Attached->FindComponentByClass<UGSGrabbableComponent>();
+				if (TempGrabComp && TempGrabComp->IsGrabbed())
 				{
-					HeldItem->SetActorLocation(LaunchStartLoc);
+					float CurrentZ = Attached->GetRootComponent() ? Attached->GetRootComponent()->GetRelativeLocation().Z : 0.0f;
+					if (CurrentZ > MaxZ)
+					{
+						MaxZ = CurrentZ;
+						NewTopItem = Attached;
+					}
 				}
 			}
 		}
-
-		if (PC)
+		PC->LastGrabbedActor = NewTopItem;
+		if (NewTopItem && !PC->HasAuthority())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: Cleaning up LastGrabbedActor on PC locally (setting to NULL)."), *NetRole);
-			PC->LastGrabbedActor = nullptr;
+			PC->Server_SetGrabbedActor(NewTopItem);
 		}
 	}
-	else
+	else if (PC)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[ANTIGRAVITY_LOG][%s] UGSAbility_Launch: HeldItem or GrabComp was NULL in InputReleased! HeldItem = %s, GrabComp = %s"), 
-			*NetRole, HeldItem ? *HeldItem->GetName() : TEXT("NULL"), GrabComp ? *GrabComp->GetName() : TEXT("NULL"));
+		PC->LastGrabbedActor = nullptr;
 	}
 
-	if (ActorInfo->IsNetAuthority())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][SERVER] UGSAbility_Launch: Calling EndAbility on Server (Authority)."));
-		EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][CLIENT] UGSAbility_Launch: Ending locally on Client (No replication)."));
-		EndAbility(Handle, ActorInfo, ActivationInfo, false, false);
-	}
+	EndAbility(Handle, ActorInfo, ActivationInfo, ActorInfo->IsNetAuthority(), false);
 }

@@ -15,6 +15,8 @@ class UGSHealthAttributeSet;
 class UGSMovementAttributeSet;
 class UGSPatienceAttributeSet;
 class UNavMoverComponent;
+class UAudioComponent;
+class UGSEmoteDefinition;
 
 UCLASS()
 class PROJECTF_API AGSPawn : public APawn, public IGSPlayerInterface, public IMoverInputProducerInterface, public IAbilitySystemInterface
@@ -56,6 +58,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GAS")
 	TMap<FGameplayTag, FGameplayTag> AbilitySlotMap;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UAudioComponent> ActiveEmoteAudioComponent;
+
 	FVector2D CachedMovementInput;
 	bool bCachedJumpPressed;
 	bool bCachedJumpJustPressed;
@@ -79,6 +84,12 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "GAS")
 	FGameplayTag GetAbilityTagForSlot(FGameplayTag SlotTag) const;
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastPlayEmoteSound(UGSEmoteDefinition* EmoteDef);
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastStopEmoteSound();
 
 	virtual void ProduceInput_Implementation(int32 SimTimeMs, FMoverInputCmdContext& InputCmdResult) override;
 };

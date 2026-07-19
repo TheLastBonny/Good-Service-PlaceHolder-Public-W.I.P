@@ -10,6 +10,10 @@
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "GameFramework/PlayerState.h"
 #include "Core/GSGameplayTags.h"
+#include "Kismet/GameplayStatics.h"
+#include "Components/AudioComponent.h"
+#include "DrawDebugHelpers.h"
+#include "DataAssets/GSEmoteDefinition.h"
 #include "Characters/GSPlayerController.h"
 #include "Components/GSGrabbableComponent.h"
 #include "Engine/OverlapResult.h"
@@ -55,8 +59,7 @@ UAbilitySystemComponent* AGSPawn::GetAbilitySystemComponent() const
 void AGSPawn::BeginPlay()
 {
 	FString NetRole = HasAuthority() ? TEXT("SERVER") : TEXT("CLIENT");
-	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn::BeginPlay: Pawn %s, Location: %s"), 
-		*NetRole, *GetName(), *GetActorLocation().ToString());
+	
 
 	if (CapsuleComponent)
 	{
@@ -65,7 +68,7 @@ void AGSPawn::BeginPlay()
 		CapsuleComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		CapsuleComponent->SetSimulatePhysics(false);
 		CapsuleComponent->SetUpdateKinematicFromSimulation(false);
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn::BeginPlay: Configured CapsuleComponent: Profile = Pawn, Enabled = QueryAndPhysics"), *NetRole);
+		
 	}
 
 	Super::BeginPlay();
@@ -74,8 +77,7 @@ void AGSPawn::BeginPlay()
 void AGSPawn::PossessedBy(AController* NewController)
 {
 	FString NetRole = HasAuthority() ? TEXT("SERVER") : TEXT("CLIENT");
-	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn::PossessedBy: Pawn %s possessed by controller %s"), 
-		*NetRole, *GetName(), NewController ? *NewController->GetName() : TEXT("NULL"));
+	
 	Super::PossessedBy(NewController);
 	InitAbilityActorInfo();
 }
@@ -165,22 +167,20 @@ void AGSPawn::RequestJump_Implementation(bool bIsJumping)
 void AGSPawn::RequestAbilityByTag_Implementation(const FGameplayTag& InputTag)
 {
 	FString NetRole = HasAuthority() ? TEXT("SERVER") : TEXT("CLIENT");
-	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn::RequestAbilityByTag called. Pawn: %s, InputTag: %s"), 
-		*NetRole, *GetName(), *InputTag.ToString());
+	
 
 	if (AbilitySystemComponent)
 	{
 		const FGameplayTag AbilityTag = GetAbilityTagForSlot(InputTag);
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: InputTag [%s] maps to AbilityTag [%s]"), 
-			*NetRole, *InputTag.ToString(), *AbilityTag.ToString());
+		
 
 		if (!AbilityTag.IsValid()) 
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: AbilityTag is INVALID!"), *NetRole);
+			
 			return; 
 		}
 
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: Listing all activatable abilities on ASC:"), *NetRole);
+		
 		int32 Index = 0;
 		for (const FGameplayAbilitySpec& Spec : AbilitySystemComponent->GetActivatableAbilities())
 		{
@@ -209,12 +209,11 @@ void AGSPawn::RequestAbilityByTag_Implementation(const FGameplayTag& InputTag)
 			if (Spec.Ability && (Spec.Ability->GetAssetTags().HasTag(AbilityTag) || Spec.Ability->AbilityTags.HasTag(AbilityTag)))
 			{
 				MatchCount++;
-				UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: Found matching ability spec: %s (Handle: %s). IsActive: %d. Calling AbilitySpecInputPressed."),
-					*NetRole, *Spec.Ability->GetName(), *Spec.Handle.ToString(), Spec.IsActive());
+				
 				AbilitySystemComponent->AbilitySpecInputPressed(Spec);
 				if (!Spec.IsActive())
 				{
-					UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: Activating ability spec %s"), *NetRole, *Spec.Handle.ToString());
+					
 					AbilitySystemComponent->TryActivateAbility(Spec.Handle);
 				}
 			}
@@ -222,30 +221,28 @@ void AGSPawn::RequestAbilityByTag_Implementation(const FGameplayTag& InputTag)
 		}
 		if (MatchCount == 0)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: No matching activatable ability found on ASC for tag %s"), *NetRole, *AbilityTag.ToString());
+			
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: RequestAbilityByTag: ASC is NULL!"), *NetRole);
+		
 	}
 }
 
 void AGSPawn::RequestAbilityReleasedByTag_Implementation(const FGameplayTag& InputTag)
 {
 	FString NetRole = HasAuthority() ? TEXT("SERVER") : TEXT("CLIENT");
-	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn::RequestAbilityReleasedByTag called. Pawn: %s, InputTag: %s"), 
-		*NetRole, *GetName(), *InputTag.ToString());
+	
 
 	if (AbilitySystemComponent)
 	{
 		const FGameplayTag AbilityTag = GetAbilityTagForSlot(InputTag);
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: Released Slot Tag [%s] mapped to Ability Tag [%s]"), 
-			*NetRole, *InputTag.ToString(), *AbilityTag.ToString());
+		
 
 		if (!AbilityTag.IsValid()) 
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: AbilityTag for Slot Tag [%s] is INVALID!"), *NetRole, *InputTag.ToString());
+			
 			return; 
 		}
 
@@ -258,20 +255,19 @@ void AGSPawn::RequestAbilityReleasedByTag_Implementation(const FGameplayTag& Inp
 			if (Spec.Ability && (Spec.Ability->GetAssetTags().HasTag(AbilityTag) || Spec.Ability->AbilityTags.HasTag(AbilityTag)))
 			{
 				MatchCount++;
-				UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: Found matching ability spec for release: %s. IsActive = %d. Calling AbilitySpecInputReleased."),
-					*NetRole, *Spec.Ability->GetName(), Spec.IsActive());
+				
 				AbilitySystemComponent->AbilitySpecInputReleased(Spec);
 			}
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 		if (MatchCount == 0)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: No matching activatable ability found on ASC for release tag %s"), *NetRole, *AbilityTag.ToString());
+			
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("[ANTIGRAVITY_LOG][%s] AGSPawn: RequestAbilityReleasedByTag: ASC is NULL!"), *NetRole);
+		
 	}
 }
 
@@ -286,8 +282,89 @@ FGameplayTag AGSPawn::GetAbilityTagForSlot(FGameplayTag SlotTag) const
 	return Found ? *Found : FGameplayTag::EmptyTag;
 }
 
+void AGSPawn::MulticastPlayEmoteSound_Implementation(UGSEmoteDefinition* EmoteDef)
+{
+	if (!EmoteDef) return;
+
+	MulticastStopEmoteSound();
+
+	USoundBase* SoundToPlay = EmoteDef->EmoteSound.LoadSynchronous();
+	if (!SoundToPlay) return;
+
+	if (GetNetMode() == NM_DedicatedServer) return;
+
+	if (EmoteDef->bPlayAs3DSound)
+	{
+		ActiveEmoteAudioComponent = NewObject<UAudioComponent>(this);
+		if (ActiveEmoteAudioComponent)
+		{
+			ActiveEmoteAudioComponent->SetSound(SoundToPlay);
+			ActiveEmoteAudioComponent->bAllowSpatialization = true;
+			ActiveEmoteAudioComponent->AttenuationOverrides.bAttenuate = true;
+			ActiveEmoteAudioComponent->AttenuationOverrides.bSpatialize = true;
+			ActiveEmoteAudioComponent->AttenuationOverrides.AttenuationShape = EAttenuationShape::Sphere;
+			ActiveEmoteAudioComponent->AttenuationOverrides.AttenuationShapeExtents = FVector(EmoteDef->SoundRadius * 0.1f, 0.f, 0.f);
+			ActiveEmoteAudioComponent->AttenuationOverrides.FalloffDistance = EmoteDef->SoundRadius * 0.9f;
+			ActiveEmoteAudioComponent->AdjustAttenuation(ActiveEmoteAudioComponent->AttenuationOverrides);
+
+			ActiveEmoteAudioComponent->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+			ActiveEmoteAudioComponent->bAutoDestroy = true;
+			ActiveEmoteAudioComponent->RegisterComponent();
+			ActiveEmoteAudioComponent->Play();
+		}
+
+#if !UE_BUILD_SHIPPING
+		if (EmoteDef->bShowSoundRadiusDebug)
+		{
+			DrawDebugSphere(
+				GetWorld(),
+				GetActorLocation(),
+				EmoteDef->SoundRadius,
+				32,
+				FColor::Green,
+				false,
+				SoundToPlay->GetDuration(),
+				0,
+				1.5f
+			);
+		}
+#endif
+	}
+	else
+	{
+		ActiveEmoteAudioComponent = UGameplayStatics::SpawnSound2D(
+			GetWorld(),
+			SoundToPlay,
+			1.f,
+			1.f,
+			0.f,
+			nullptr,
+			true
+		);
+	}
+}
+
+void AGSPawn::MulticastStopEmoteSound_Implementation()
+{
+	if (ActiveEmoteAudioComponent)
+	{
+		ActiveEmoteAudioComponent->Stop();
+		ActiveEmoteAudioComponent = nullptr;
+	}
+}
+
 void AGSPawn::ProduceInput_Implementation(int32 SimTimeMs, FMoverInputCmdContext& InputCmdResult)
 {
+	if (AbilitySystemComponent && AbilitySystemComponent->HasMatchingGameplayTag(GSGameplayTags::State_Emoting))
+	{
+		if (!CachedMovementInput.IsZero() || bCachedJumpPressed)
+		{
+			FGameplayTagContainer EmotingTags;
+			EmotingTags.AddTag(GSGameplayTags::State_Emoting);
+			AbilitySystemComponent->CancelAbilities(&EmotingTags);
+		}
+	}
+
 	FCharacterDefaultInputs& CharacterInputs = InputCmdResult.InputCollection.FindOrAddMutableDataByType<FCharacterDefaultInputs>();
 
 	FVector MoveDirection = FVector::ZeroVector;

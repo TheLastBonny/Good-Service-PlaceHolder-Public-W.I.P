@@ -3,6 +3,13 @@
 #include "GameplayTagContainer.h"
 #include "Core/GSGameplayTags.h"
 
+TAutoConsoleVariable<int32> CVarShowDebugLogs(
+	TEXT("gs.ShowDebugLogs"),
+	0,
+	TEXT("Toggle GoodService debug logs project-wide.\n0: Off\n1: On"),
+	ECVF_Cheat
+);
+
 UGSCookingAttributeSet::UGSCookingAttributeSet()
 {
 	InitCookingProgress(0.f);
@@ -23,7 +30,8 @@ void UGSCookingAttributeSet::PreAttributeChange(const FGameplayAttribute& Attrib
 
 	if (Attribute == GetCookingProgressAttribute())
 	{
-		NewValue = FMath::Max(NewValue, 0.f);
+
+		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxCookingProgress());
 	}
 	else if (Attribute == GetMaxCookingProgressAttribute())
 	{
@@ -47,6 +55,20 @@ void UGSCookingAttributeSet::PostAttributeChange(const FGameplayAttribute& Attri
 
 	if (Attribute == GetCookingProgressAttribute())
 	{
+		if (CVarShowDebugLogs.GetValueOnGameThread() > 0)
+		{
+			UE_LOG(LogTemp, Log, TEXT("[COOKING] %s: CookingProgress = %f / %f"), *GetOwningActor()->GetName(), NewValue, GetMaxCookingProgress());
+			if (GEngine)
+			{
+				GEngine->AddOnScreenDebugMessage(
+					(int32)((uintptr_t)this),
+					0.1f,
+					FColor::Yellow,
+					FString::Printf(TEXT("%s: Cooking Progress = %.1f / %.1f"), *GetOwningActor()->GetName(), NewValue, GetMaxCookingProgress())
+				);
+			}
+		}
+
 		if (UAbilitySystemComponent* ASC = GetOwningAbilitySystemComponent())
 		{
 			const FGameplayTag CookedTag = GSGameplayTags::State_Cooked;
@@ -54,8 +76,10 @@ void UGSCookingAttributeSet::PostAttributeChange(const FGameplayAttribute& Attri
 			{
 				if (!ASC->HasMatchingGameplayTag(CookedTag))
 				{
-					ASC->AddLooseGameplayTag(CookedTag);
-					ASC->SetLooseGameplayTagCount(CookedTag, 1);
+
+					ASC->AddLooseGameplayTag(CookedTag, 1, EGameplayTagReplicationState::TagOnly);
+
+					ASC->RemoveLooseGameplayTag(GSGameplayTags::State_Raw, 1, EGameplayTagReplicationState::TagOnly);
 				}
 			}
 			else

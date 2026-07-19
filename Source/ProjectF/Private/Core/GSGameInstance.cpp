@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+
 
 #include "Core/GSGameInstance.h"
 #include "OnlineSubsystem.h"
@@ -6,6 +6,11 @@
 #include "Online/OnlineSessionNames.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"
+
+
+#ifndef SEARCH_PRESENCE
+#define SEARCH_PRESENCE FName(TEXT("PRESENCESEARCH"))
+#endif
 
 UGSGameInstance::UGSGameInstance()
 {
@@ -34,6 +39,10 @@ void UGSGameInstance::Init()
 
 			JoinSessionCompleteDelegate = FOnJoinSessionCompleteDelegate::CreateUObject(this, &UGSGameInstance::OnJoinSessionCompleteInternal);
 			JoinSessionCompleteDelegateHandle = SessionInterface->AddOnJoinSessionCompleteDelegate_Handle(JoinSessionCompleteDelegate);
+
+			OnSessionUserInviteAcceptedDelegateHandle = SessionInterface->AddOnSessionUserInviteAcceptedDelegate_Handle(
+				FOnSessionUserInviteAcceptedDelegate::CreateUObject(this, &UGSGameInstance::OnSessionUserInviteAccepted)
+			);
 		}
 	}
 	else
@@ -54,6 +63,7 @@ void UGSGameInstance::Shutdown()
 			SessionInterface->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegateHandle);
 			SessionInterface->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionsCompleteDelegateHandle);
 			SessionInterface->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionCompleteDelegateHandle);
+			SessionInterface->ClearOnSessionUserInviteAcceptedDelegate_Handle(OnSessionUserInviteAcceptedDelegateHandle);
 		}
 	}
 
@@ -80,7 +90,7 @@ void UGSGameInstance::HostGame(const FString& RoomCode, int32 MaxPlayers)
 
 	if (RoomCode.IsEmpty())
 	{
-		// Generate random 5-character alphanumeric room code
+
 		const FString Alphanumeric = TEXT("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
 		FString GeneratedCode = TEXT("");
 		for (int32 i = 0; i < 5; ++i)
@@ -89,7 +99,7 @@ void UGSGameInstance::HostGame(const FString& RoomCode, int32 MaxPlayers)
 			GeneratedCode.AppendChar(Alphanumeric[Index]);
 		}
 		PendingRoomCode = GeneratedCode;
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG] HostGame: Generated random Room Code: %s"), *PendingRoomCode);
+		
 	}
 	else
 	{
@@ -98,11 +108,11 @@ void UGSGameInstance::HostGame(const FString& RoomCode, int32 MaxPlayers)
 	PendingMaxPlayers = MaxPlayers;
 	bIsHostPending = true;
 
-	FNamedOnlineSession* ExistingSession = SessionInterface->GetNamedSession(FName(TEXT("Game")));
+	FNamedOnlineSession* ExistingSession = SessionInterface->GetNamedSession(NAME_GameSession);
 	if (ExistingSession != nullptr)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("HostGame: Existing session found, destroying first..."));
-		SessionInterface->DestroySession(FName(TEXT("Game")));
+		SessionInterface->DestroySession(NAME_GameSession);
 		return;
 	}
 
@@ -123,7 +133,7 @@ void UGSGameInstance::HostGame(const FString& RoomCode, int32 MaxPlayers)
 	RoomCodeSetting.AdvertisementType = EOnlineDataAdvertisementType::ViaOnlineServiceAndPing;
 	SessionSettings.Settings.Add(FName(TEXT("ROOM_CODE")), RoomCodeSetting);
 
-	bool bSuccess = SessionInterface->CreateSession(0, FName(TEXT("Game")), SessionSettings);
+	bool bSuccess = SessionInterface->CreateSession(0, NAME_GameSession, SessionSettings);
 	if (!bSuccess)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("HostGame: Failed to initiate CreateSession call"));
@@ -160,7 +170,7 @@ void UGSGameInstance::OnDestroySessionComplete(FName SessionName, bool bWasSucce
 				RoomCodeSetting.AdvertisementType = EOnlineDataAdvertisementType::ViaOnlineServiceAndPing;
 				SessionSettings.Settings.Add(FName(TEXT("ROOM_CODE")), RoomCodeSetting);
 
-				bool bSuccess = SessionInterface->CreateSession(0, FName(TEXT("Game")), SessionSettings);
+				bool bSuccess = SessionInterface->CreateSession(0, NAME_GameSession, SessionSettings);
 				if (!bSuccess)
 				{
 					UE_LOG(LogTemp, Warning, TEXT("OnDestroySessionComplete: Failed to initiate CreateSession call"));
@@ -268,7 +278,7 @@ void UGSGameInstance::OnFindSessionsComplete(bool bWasSuccessful)
 	if (TargetSession != nullptr)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("OnFindSessionsComplete: Match found. Joining session..."));
-		bool bSuccess = SessionInterface->JoinSession(0, FName(TEXT("Game")), *TargetSession);
+		bool bSuccess = SessionInterface->JoinSession(0, NAME_GameSession, *TargetSession);
 		if (!bSuccess)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("OnFindSessionsComplete: Failed to initiate JoinSession call"));
@@ -277,8 +287,8 @@ void UGSGameInstance::OnFindSessionsComplete(bool bWasSuccessful)
 	}
 	else
 	{
-		// Fallback: If we didn't find any match and the search was filtered on ROOM_CODE,
-		// try a broad unfiltered search (fetching all lobbies and filtering them locally).
+
+
 		FString TempRoomCode;
 		bool bWasFiltered = SessionSearch->QuerySettings.Get(FName(TEXT("ROOM_CODE")), TempRoomCode);
 		if (bWasFiltered)
@@ -348,4 +358,36 @@ void UGSGameInstance::OnJoinSessionCompleteInternal(FName SessionName, EOnJoinSe
 FString UGSGameInstance::GetActiveRoomCode() const
 {
 	return ActiveRoomCode;
+}
+
+void UGSGameInstance::OnSessionUserInviteAccepted(const bool bWasSuccessful, const int32 ControllerId, TSharedPtr<const FUniqueNetId> UserId, const FOnlineSessionSearchResult& InviteResult)
+{
+	UE_LOG(LogTemp, Warning, TEXT("OnSessionUserInviteAccepted: Successful: %d"), bWasSuccessful);
+
+	if (bWasSuccessful)
+	{
+		IOnlineSubsystem* Subsystem = IOnlineSubsystem::Get();
+		if (Subsystem)
+		{
+			IOnlineSessionPtr SessionInterface = Subsystem->GetSessionInterface();
+			if (SessionInterface.IsValid())
+			{
+				UE_LOG(LogTemp, Warning, TEXT("OnSessionUserInviteAccepted: Joining invited session..."));
+				
+				// Clean up existing session if any
+				FNamedOnlineSession* ExistingSession = SessionInterface->GetNamedSession(NAME_GameSession);
+				if (ExistingSession != nullptr)
+				{
+					SessionInterface->DestroySession(NAME_GameSession);
+				}
+
+				bool bSuccess = SessionInterface->JoinSession(ControllerId, NAME_GameSession, InviteResult);
+				if (!bSuccess)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("OnSessionUserInviteAccepted: Failed to initiate JoinSession"));
+					OnJoinSessionComplete.Broadcast(false);
+				}
+			}
+		}
+	}
 }

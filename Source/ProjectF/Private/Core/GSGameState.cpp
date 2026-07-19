@@ -62,16 +62,21 @@ float AGSGameState::GetMoneyMultiplier() const
 
 void AGSGameState::AddMoneyDirectly(float BaseAmount)
 {
-	if (HasAuthority() && MoneyAttributeSet && BaseAmount > 0.0f)
+	if (HasAuthority() && MoneyAttributeSet && BaseAmount != 0.0f)
 	{
 		float CurrentMoney = MoneyAttributeSet->GetMoney();
-		float Multiplier = MoneyAttributeSet->GetMoneyMultiplier();
-		float FinalAdd = BaseAmount * Multiplier;
+		float FinalAdd = BaseAmount;
+		if (BaseAmount > 0.0f)
+		{
+			float Multiplier = MoneyAttributeSet->GetMoneyMultiplier();
+			FinalAdd = BaseAmount * Multiplier;
+		}
 		
-		AbilitySystemComponent->SetNumericAttributeBase(UGSMoneyAttributeSet::GetMoneyAttribute(), CurrentMoney + FinalAdd);
+		float NewMoney = FMath::Max(CurrentMoney + FinalAdd, 0.0f);
+		AbilitySystemComponent->SetNumericAttributeBase(UGSMoneyAttributeSet::GetMoneyAttribute(), NewMoney);
 		
-		// Broadcast changes locally on the server (clients will receive it via OnRep_Money)
-		OnMoneyChanged.Broadcast(FMath::RoundToInt(MoneyAttributeSet->GetMoney()));
+
+		OnMoneyChanged.Broadcast(FMath::RoundToInt(NewMoney));
 	}
 }
 
@@ -82,10 +87,10 @@ void AGSGameState::SetGamePhase(EGSGamePhase NewPhase)
 		EGSGamePhase OldPhase = CurrentPhase;
 		CurrentPhase = NewPhase;
 		
-		// Trigger local event on server
+
 		OnRep_CurrentPhase(OldPhase);
 
-		// Handle phase logic
+
 		if (CurrentPhase == EGSGamePhase::RoundInProgress)
 		{
 			StartRoundTimer();
@@ -159,7 +164,7 @@ void AGSGameState::RegisterNPCManager(AGSNPCManager* Manager)
 {
 	NPCManager = Manager;
 	
-	// If the round is already in progress, start spawning immediately
+
 	if (HasAuthority() && NPCManager && CurrentPhase == EGSGamePhase::RoundInProgress)
 	{
 		NPCManager->StartSpawning();
