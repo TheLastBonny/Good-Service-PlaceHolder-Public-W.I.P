@@ -18,7 +18,7 @@ struct FGSFoodRecipeDetails
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Recipe")
 	FText FoodName;
 
-	// Soft pointer to icon texture so we can load it on demand
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Recipe")
 	TSoftObjectPtr<UTexture2D> FoodIcon;
 

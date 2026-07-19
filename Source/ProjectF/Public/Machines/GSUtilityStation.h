@@ -4,6 +4,8 @@
 #include "GameFramework/Actor.h"
 #include "AbilitySystemInterface.h"
 #include "GameplayEffectTypes.h"
+#include "GameplayTagContainer.h"
+#include "DataAssets/GSStationDataAsset.h"
 #include "GSUtilityStation.generated.h"
 
 class UAbilitySystemComponent;
@@ -25,7 +27,7 @@ public:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-	// Funciones de consulta expuestas a Blueprints
+
 	UFUNCTION(BlueprintPure, Category = "Station")
 	AActor* GetLastPlacedItem() const;
 
@@ -41,8 +43,60 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Station")
 	AActor* GetFirstReadyItem() const;
 
+
+
+
+
+	/** Llamado cuando un ítem entra a la estación (overlap begin confirmado). */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Station|Events")
+	void OnItemAddedToStation(AActor* Item);
+
+	/** Llamado cuando un ítem es removido de la estación (por grab, por código, etc.). */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Station|Events")
+	void OnItemRemovedFromStation(AActor* Item);
+
+	/** Aplica un Gameplay Effect al ítem manualmente desde Blueprint.
+	 *  El handle queda registrado y se limpia automáticamente al salir de la estación. */
+	UFUNCTION(BlueprintCallable, Category = "Station|GAS")
+	void ApplyEffectToItem(AActor* Item, TSubclassOf<UGameplayEffect> EffectClass);
+
 protected:
 	virtual void BeginPlay() override;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Config")
+	TArray<FName> StationSockets;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Config")
+	FGameplayTagContainer AllowedItemTags;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Config")
+	bool bHidePlacedItems = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Config")
+	bool bLimitToSockets = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
+	bool bShowDebugLogs = false;
+
+	UFUNCTION(CallInEditor, Category = "Debug")
+	void ToggleDebugLogs() { bShowDebugLogs = !bShowDebugLogs; }
+
+	/** Internal C++ handling when an item is added to the station. */
+	virtual void HandleItemAddedToStation(AActor* Item);
+
+	/** Internal C++ handling when an item is removed from the station. */
+	virtual void HandleItemRemovedFromStation(AActor* Item);
+
+	/** Llamado cuando cambia cualquier tag de estado del ítem acoplado (ej: State.Cooked, State.Burned, State.Filled) */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Station|Events")
+	void OnAttachedItemStateChanged(AActor* Item, FGameplayTag StateTag, bool bAdded);
+
+	void OnItemStateTagChanged(const FGameplayTag Tag, int32 NewCount, FGameplayTag StateTag, TWeakObjectPtr<AActor> WeakItem);
+
+	void UpdateEffectsForItem(AActor* Item);
+
+	UFUNCTION()
+	void OnPlacedItemGrabbed(AActor* GrabbedItem);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UBoxComponent> StationVolume;
@@ -56,13 +110,16 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GAS")
 	TArray<TSubclassOf<UGameplayEffect>> EffectsToApply;
 
-	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Station")
-	TArray<TObjectPtr<AActor>> PlacedItems;
+	UPROPERTY(ReplicatedUsing = OnRep_PlacedItems, BlueprintReadOnly, Category = "Station")
+	TArray<AActor*> PlacedItems;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Config")
 	TObjectPtr<UGSStationDataAsset> StationData;
 
-	TMap<TObjectPtr<AActor>, TArray<FActiveGameplayEffectHandle>> AppliedEffectsMap;
+	TMap<AActor*, TArray<FActiveGameplayEffectHandle>> AppliedEffectsMap;
+
+	UFUNCTION()
+	void OnRep_PlacedItems(const TArray<AActor*>& OldPlacedItems);
 
 
 	UFUNCTION()
@@ -70,4 +127,18 @@ protected:
 
 	UFUNCTION()
 	void OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
+private:
+	struct FGSItemSubscription
+	{
+		TMap<FGameplayTag, FDelegateHandle> TagHandles;
+	};
+
+	TMap<TWeakObjectPtr<AActor>, FGSItemSubscription> StationSubscriptions;
+
+
+	TArray<FGSConditionalEffectEntry> ConditionalEffectsFromData;
+
+	FName GetFirstFreeSocket() const;
 };
+

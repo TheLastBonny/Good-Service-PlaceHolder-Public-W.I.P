@@ -3,6 +3,8 @@
 #include "GameplayTagContainer.h"
 #include "Core/GSGameplayTags.h"
 
+extern TAutoConsoleVariable<int32> CVarShowDebugLogs;
+
 UGSBurnAttributeSet::UGSBurnAttributeSet()
 {
 	InitBurnProgress(0.f);
@@ -23,7 +25,8 @@ void UGSBurnAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute
 
 	if (Attribute == GetBurnProgressAttribute())
 	{
-		NewValue = FMath::Max(NewValue, 0.f);
+
+		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxBurnProgress());
 	}
 	else if (Attribute == GetMaxBurnProgressAttribute())
 	{
@@ -47,6 +50,20 @@ void UGSBurnAttributeSet::PostAttributeChange(const FGameplayAttribute& Attribut
 
 	if (Attribute == GetBurnProgressAttribute())
 	{
+		if (CVarShowDebugLogs.GetValueOnGameThread() > 0)
+		{
+			UE_LOG(LogTemp, Log, TEXT("[BURN] %s: BurnProgress = %f / %f"), *GetOwningActor()->GetName(), NewValue, GetMaxBurnProgress());
+			if (GEngine)
+			{
+				GEngine->AddOnScreenDebugMessage(
+					(int32)((uintptr_t)this),
+					0.1f,
+					FColor::Red,
+					FString::Printf(TEXT("%s: Burning Progress = %.1f / %.1f"), *GetOwningActor()->GetName(), NewValue, GetMaxBurnProgress())
+				);
+			}
+		}
+
 		if (UAbilitySystemComponent* ASC = GetOwningAbilitySystemComponent())
 		{
 			const FGameplayTag BurnedTag = GSGameplayTags::State_Burned;
@@ -54,8 +71,10 @@ void UGSBurnAttributeSet::PostAttributeChange(const FGameplayAttribute& Attribut
 			{
 				if (!ASC->HasMatchingGameplayTag(BurnedTag))
 				{
-					ASC->AddLooseGameplayTag(BurnedTag);
-					ASC->SetLooseGameplayTagCount(BurnedTag, 1);
+
+					ASC->AddLooseGameplayTag(BurnedTag, 1, EGameplayTagReplicationState::TagOnly);
+
+					ASC->RemoveLooseGameplayTag(GSGameplayTags::State_Cooked, 1, EGameplayTagReplicationState::TagOnly);
 				}
 			}
 			else

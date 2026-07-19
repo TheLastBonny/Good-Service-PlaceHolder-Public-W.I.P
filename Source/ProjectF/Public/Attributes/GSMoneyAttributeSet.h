@@ -23,17 +23,17 @@ public:
 	virtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
 	virtual void PostGameplayEffectExecute(const struct FGameplayEffectModCallbackData& Data) override;
 
-	// Total money accumulated in the game
+
 	UPROPERTY(BlueprintReadOnly, Category = "Attributes", ReplicatedUsing = OnRep_Money)
 	FGameplayAttributeData Money;
 	ATTRIBUTE_ACCESSORS(UGSMoneyAttributeSet, Money)
 
-	// Global multiplier applied to incoming earned money (e.g. 1.0f = normal, 2.0f = double)
+
 	UPROPERTY(BlueprintReadOnly, Category = "Attributes", ReplicatedUsing = OnRep_MoneyMultiplier)
 	FGameplayAttributeData MoneyMultiplier;
 	ATTRIBUTE_ACCESSORS(UGSMoneyAttributeSet, MoneyMultiplier)
 
-	// Meta attribute for incoming money (not replicated, instantly converted to Money and cleared)
+
 	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
 	FGameplayAttributeData EarnedMoney;
 	ATTRIBUTE_ACCESSORS(UGSMoneyAttributeSet, EarnedMoney)

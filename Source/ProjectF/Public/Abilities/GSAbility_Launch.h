@@ -32,6 +32,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Launch")
 	float DropForwardOffset;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Launch | Stacking")
+	float DispersedThrowSpreadAngle;
+
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Debug")
 	bool bShowDebugShape;

@@ -7,8 +7,11 @@
 
 class UAnimMontage;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGrabbedSignature, AActor*, GrabbedActor);
+
 USTRUCT(BlueprintType)
 struct FGSKinematicFlightParams
+
 {
 	GENERATED_BODY()
 
@@ -26,6 +29,9 @@ class PROJECTF_API UGSGrabbableComponent : public UActorComponent
 
 public:
 	UGSGrabbableComponent();
+
+	UPROPERTY(BlueprintAssignable, Category = "Grab")
+	FOnGrabbedSignature OnGrabbed;
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void BeginPlay() override;
@@ -52,7 +58,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Grab")
 	float ThrowArcHeight;
 
-	// Height offset above the character head used as a fallback if the attachment socket is not found.
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Grab")
 	float FallbackAboveHeadHeight;
 
@@ -84,11 +90,17 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Grab")
 	TEnumAsByte<ECollisionEnabled::Type> OriginalCollisionEnabled;
 
-	// Projectile Flight Functions
+
 	void LaunchKinematic(const FVector& InStartLoc, const FVector& InTargetLoc, float InArcHeight, float InDuration);
 
 	UFUNCTION()
 	void OnRep_KinematicFlightParams();
+
+	UPROPERTY(ReplicatedUsing = OnRep_ReplicatedStackHeightOffset, BlueprintReadWrite, Category = "Grab")
+	float ReplicatedStackHeightOffset;
+
+	UFUNCTION()
+	void OnRep_ReplicatedStackHeightOffset();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Projectile")
 	TObjectPtr<UProjectileMovementComponent> ProjectileComp;

@@ -13,6 +13,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/GameplayStaticsTypes.h"
 #include "Components/MeshComponent.h"
+#include "Machines/GSUtilityStation.h"
+#include "EngineUtils.h"
 
 UGSGrabbableComponent::UGSGrabbableComponent()
 {
@@ -37,6 +39,7 @@ UGSGrabbableComponent::UGSGrabbableComponent()
 	ProjectileBounciness = 0.35f;
 	ProjectileFriction = 0.4f;
 	ProjectileGravityScale = 1.0f;
+	ReplicatedStackHeightOffset = 0.0f;
 }
 
 void UGSGrabbableComponent::BeginPlay()
@@ -65,7 +68,7 @@ void UGSGrabbableComponent::BeginPlay()
 			OriginalCollisionProfileName = PrimitiveRoot->GetCollisionProfileName();
 			OriginalCollisionEnabled = PrimitiveRoot->GetCollisionEnabled();
 
-			// Safety fallback: if default is set to no collision, treat it as QueryAndPhysics
+
 			if (OriginalCollisionEnabled == ECollisionEnabled::NoCollision)
 			{
 				OriginalCollisionEnabled = ECollisionEnabled::QueryAndPhysics;
@@ -75,8 +78,7 @@ void UGSGrabbableComponent::BeginPlay()
 				OriginalCollisionProfileName = TEXT("BlockAllDynamic");
 			}
 
-			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSGrabbableComponent::BeginPlay: Cached settings for %s: Simulate: %d, Profile: %s, Enabled: %d"),
-				*NetRole, *Owner->GetName(), bOriginalSimulatePhysics, *OriginalCollisionProfileName.ToString(), (int32)OriginalCollisionEnabled.GetValue());
+			
 		}
 	}
 }
@@ -88,91 +90,33 @@ void UGSGrabbableComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 	AActor* Owner = GetOwner();
 	if (!Owner) return;
 
-	// Server-only gameplay-critical catch detection and settling detection
+	if (bIsFlying && Owner->GetAttachParentActor() != nullptr)
+	{
+		bIsFlying = false;
+		if (Owner->HasAuthority())
+		{
+			KinematicFlightParams.bIsFlying = false;
+			KinematicFlightParams.LaunchVelocity = FVector::ZeroVector;
+			OnRep_KinematicFlightParams();
+		}
+		else
+		{
+			OnRep_KinematicFlightParams();
+		}
+		return;
+	}
+
+
 	if (bIsFlying && Owner->HasAuthority())
 	{
-		// 1. Check for overlapping catching characters (Server-authoritative)
-		TArray<FOverlapResult> OverlapResults;
-		FCollisionShape CollisionSphere = FCollisionShape::MakeSphere(100.0f); // 100 units catch radius
-		FCollisionQueryParams QueryParams;
-		QueryParams.AddIgnoredActor(Owner);
-		if (Owner->GetInstigator())
-		{
-			QueryParams.AddIgnoredActor(Owner->GetInstigator());
-		}
 
-		FVector CurrentLocation = Owner->GetActorLocation();
-
-		if (GetWorld()->OverlapMultiByChannel(OverlapResults, CurrentLocation, FQuat::Identity, ECC_Pawn, CollisionSphere, QueryParams))
-		{
-			for (const FOverlapResult& Overlap : OverlapResults)
-			{
-				AActor* OverlapActor = Overlap.GetActor();
-				if (OverlapActor)
-				{
-					IAbilitySystemInterface* ASCInterface = Cast<IAbilitySystemInterface>(OverlapActor);
-					UAbilitySystemComponent* ASC = ASCInterface ? ASCInterface->GetAbilitySystemComponent() : nullptr;
-					
-					bool bHasCatchingTag = false;
-					if (ASC)
-					{
-						bHasCatchingTag = ASC->HasMatchingGameplayTag(GSGameplayTags::State_Catching);
-					}
-
-					if (bHasCatchingTag)
-					{
-						APawn* OverlapPawn = Cast<APawn>(OverlapActor);
-						AGSPlayerController* OverlapPC = OverlapPawn ? Cast<AGSPlayerController>(OverlapPawn->GetController()) : nullptr;
-						if (OverlapPC)
-						{
-							bIsFlying = false;
-							KinematicFlightParams.bIsFlying = false;
-							KinematicFlightParams.LaunchVelocity = FVector::ZeroVector;
-
-							// Deactivate projectile component immediately
-							if (ProjectileComp)
-							{
-								ProjectileComp->Deactivate();
-								ProjectileComp->Velocity = FVector::ZeroVector;
-								ProjectileComp->SetActive(false);
-							}
-
-							Owner->SetReplicateMovement(true);
-							OnRep_KinematicFlightParams();
-
-							// Register this item as target for the hit player's grab ability
-							OverlapPC->LastGrabbedActor = Owner;
-
-							// Cancel existing grab ability (which acted as catching window) and activate the Grab ability
-							FGameplayTagContainer GrabTags;
-							GrabTags.AddTag(FGameplayTag::RequestGameplayTag(TEXT("Ability.Grab")));
-							
-							ASC->CancelAbilities(&GrabTags);
-							if (ASC->TryActivateAbilitiesByTag(GrabTags))
-							{
-								UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][SERVER] Item %s was caught mid-flight by player %s!"), *Owner->GetName(), *OverlapActor->GetName());
-								
-								DrawDebugSphere(GetWorld(), OverlapActor->GetActorLocation() + FVector(0.0f, 0.0f, 30.0f), 120.0f, 16, FColor::Green, false, 1.0f, 0, 2.0f);
-								if (GEngine)
-								{
-									GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, FString::Printf(TEXT("¡%s ATRAPÓ %s!"), *OverlapActor->GetName(), *Owner->GetName()));
-								}
-								return;
-							}
-						}
-					}
-				}
-			}
-		}
-
-		// 2. Check if the projectile has finished flying and settled on the ground
 		if (ProjectileComp && ProjectileComp->Velocity.IsNearlyZero(5.0f))
 		{
 			bIsFlying = false;
 			KinematicFlightParams.bIsFlying = false;
 			KinematicFlightParams.LaunchVelocity = FVector::ZeroVector;
 
-			UE_LOG(LogTemp, Log, TEXT("[ANTIGRAVITY_LOG][SERVER] Projectile settled for %s. Disabling flight flag."), *Owner->GetName());
+			
 
 			OnRep_KinematicFlightParams();
 		}
@@ -185,6 +129,31 @@ void UGSGrabbableComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 
 	DOREPLIFETIME(UGSGrabbableComponent, bIsGrabbed);
 	DOREPLIFETIME(UGSGrabbableComponent, KinematicFlightParams);
+	DOREPLIFETIME(UGSGrabbableComponent, ReplicatedStackHeightOffset);
+}
+
+void UGSGrabbableComponent::OnRep_ReplicatedStackHeightOffset()
+{
+	AActor* Owner = GetOwner();
+	if (!Owner) return;
+
+	if (Owner->GetAttachParentActor() && Owner->GetRootComponent())
+	{
+		FName SocketName = Owner->GetRootComponent()->GetAttachSocketName();
+		if (SocketName.IsNone() || SocketName == TEXT("None"))
+		{
+			FTransform AboveHeadTransform = FTransform(FRotator::ZeroRotator, FVector(0.0f, 0.0f, ReplicatedStackHeightOffset));
+			Owner->SetActorRelativeTransform(AboveHeadTransform);
+		}
+		else
+		{
+			FTransform StackTransform = RelativeTransform;
+			FVector Loc = StackTransform.GetLocation();
+			Loc.Z = ReplicatedStackHeightOffset;
+			StackTransform.SetLocation(Loc);
+			Owner->SetActorRelativeTransform(StackTransform);
+		}
+	}
 }
 
 void UGSGrabbableComponent::SetGrabbed(bool bInGrabbed)
@@ -193,8 +162,7 @@ void UGSGrabbableComponent::SetGrabbed(bool bInGrabbed)
 	if (Owner)
 	{
 		FString NetRole = Owner->HasAuthority() ? TEXT("SERVER") : TEXT("CLIENT");
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSGrabbableComponent::SetGrabbed on %s: bInGrabbed = %d (Previous: %d)"),
-			*NetRole, *Owner->GetName(), bInGrabbed, bIsGrabbed);
+		
 
 		if (Owner->HasAuthority())
 		{
@@ -205,6 +173,8 @@ void UGSGrabbableComponent::SetGrabbed(bool bInGrabbed)
 				bIsFlying = false;
 				KinematicFlightParams.bIsFlying = false;
 				KinematicFlightParams.LaunchVelocity = FVector::ZeroVector;
+				
+				OnGrabbed.Broadcast(Owner);
 			}
 		}
 	}
@@ -229,8 +199,7 @@ void UGSGrabbableComponent::OnRep_IsGrabbed()
 		PrimitiveRoot = Owner->FindComponentByClass<UPrimitiveComponent>();
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] UGSGrabbableComponent::OnRep_IsGrabbed for %s: bIsGrabbed = %d, PrimitiveRoot = %s"),
-		*NetRole, *Owner->GetName(), bIsGrabbed, PrimitiveRoot ? *PrimitiveRoot->GetName() : TEXT("NULL"));
+	
 
 	if (PrimitiveRoot)
 	{
@@ -240,7 +209,10 @@ void UGSGrabbableComponent::OnRep_IsGrabbed()
 			KinematicFlightParams.bIsFlying = false;
 			KinematicFlightParams.LaunchVelocity = FVector::ZeroVector;
 
-			// Destroy projectile component on grab
+
+			Owner->SetActorHiddenInGame(false);
+
+
 			UProjectileMovementComponent* TempProjComp = Owner->FindComponentByClass<UProjectileMovementComponent>();
 			if (TempProjComp)
 			{
@@ -252,14 +224,14 @@ void UGSGrabbableComponent::OnRep_IsGrabbed()
 			PrimitiveRoot->SetSimulatePhysics(false);
 			PrimitiveRoot->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-			// Reset child primitive relative transform to zero to clear any projectile movement offsets!
+
 			if (PrimitiveRoot != Owner->GetRootComponent())
 			{
 				PrimitiveRoot->SetRelativeLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
-				UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG] UGSGrabbableComponent::OnRep_IsGrabbed: Reset child PrimitiveRoot relative offset to zero."));
+				
 			}
 
-			// Sync fallback attachment relative transform
+
 			if (Owner->GetAttachParentActor() && Owner->GetRootComponent())
 			{
 				if (USceneComponent* ItemRoot = Owner->GetRootComponent())
@@ -270,20 +242,60 @@ void UGSGrabbableComponent::OnRep_IsGrabbed()
 				FName SocketName = Owner->GetRootComponent()->GetAttachSocketName();
 				if (SocketName.IsNone() || SocketName == TEXT("None"))
 				{
-					FTransform AboveHeadTransform = FTransform(FRotator::ZeroRotator, FVector(0.0f, 0.0f, FallbackAboveHeadHeight));
+					float Offset = ReplicatedStackHeightOffset > 0.0f ? ReplicatedStackHeightOffset : FallbackAboveHeadHeight;
+					FTransform AboveHeadTransform = FTransform(FRotator::ZeroRotator, FVector(0.0f, 0.0f, Offset));
 					Owner->SetActorRelativeTransform(AboveHeadTransform);
+				}
+				else
+				{
+					if (ReplicatedStackHeightOffset > 0.0f)
+					{
+						FTransform StackTransform = RelativeTransform;
+						FVector Loc = StackTransform.GetLocation();
+						Loc.Z = ReplicatedStackHeightOffset;
+						StackTransform.SetLocation(Loc);
+						Owner->SetActorRelativeTransform(StackTransform);
+					}
+					else
+					{
+						Owner->SetActorRelativeTransform(RelativeTransform);
+					}
 				}
 			}
 
 		}
 		else
 		{
-			Owner->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+
+			AActor* ParentActor = Owner->GetAttachParentActor();
+			if (ParentActor && !ParentActor->IsA(AGSUtilityStation::StaticClass()))
+			{
+				Owner->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+			}
+
 			Owner->SetActorEnableCollision(true);
 
 			PrimitiveRoot->SetCollisionProfileName(OriginalCollisionProfileName);
 			PrimitiveRoot->SetCollisionEnabled(OriginalCollisionEnabled);
-			PrimitiveRoot->SetSimulatePhysics(false); // Controlled by ProjectileMovementComponent instead
+			PrimitiveRoot->SetSimulatePhysics(false);
+
+
+			if (!Owner->HasAuthority())
+			{
+				if (APlayerController* PC = Owner->GetWorld()->GetFirstPlayerController())
+				{
+					if (APawn* Pawn = PC->GetPawn())
+					{
+						if (IAbilitySystemInterface* ASCInterface = Cast<IAbilitySystemInterface>(Pawn))
+						{
+							if (UAbilitySystemComponent* ASC = ASCInterface->GetAbilitySystemComponent())
+							{
+								ASC->RemoveLooseGameplayTag(FGameplayTag::RequestGameplayTag(TEXT("State.HoldingItem")));
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 }
@@ -293,39 +305,47 @@ void UGSGrabbableComponent::LaunchKinematic(const FVector& InStartLoc, const FVe
 	AActor* Owner = GetOwner();
 	if (!Owner) return;
 
+	FVector LaunchVelocity = FVector::ZeroVector;
+	TArray<AActor*> ActorsToIgnore;
+	ActorsToIgnore.Add(Owner);
+	if (Owner->GetInstigator())
+	{
+		ActorsToIgnore.Add(Owner->GetInstigator());
+	}
+
+
+	UGameplayStatics::FSuggestProjectileVelocityParameters Params(GetWorld(), InStartLoc, InTargetLoc, ThrowSpeed);
+	Params.bFavorHighArc = false;
+	Params.CollisionRadius = 0.0f;
+	Params.OverrideGravityZ = 0.0f;
+	Params.TraceOption = ESuggestProjVelocityTraceOption::DoNotTrace;
+	Params.ActorsToIgnore = ActorsToIgnore;
+	Params.bDrawDebug = false;
+
+	bool bSuggested = UGameplayStatics::SuggestProjectileVelocity(Params, LaunchVelocity);
+
+	if (!bSuggested)
+	{
+
+		LaunchVelocity = (InTargetLoc - InStartLoc).GetSafeNormal() * ThrowSpeed;
+		LaunchVelocity.Z += 200.0f;
+	}
+
 	if (Owner->HasAuthority())
 	{
-		FVector LaunchVelocity = FVector::ZeroVector;
-		TArray<AActor*> ActorsToIgnore;
-		ActorsToIgnore.Add(Owner);
-		if (Owner->GetInstigator())
-		{
-			ActorsToIgnore.Add(Owner->GetInstigator());
-		}
 
-		// 1. Calculate SuggestProjectileVelocity to guarantee it passes through the cursor target
-		UGameplayStatics::FSuggestProjectileVelocityParameters Params(GetWorld(), InStartLoc, InTargetLoc, ThrowSpeed);
-		Params.bFavorHighArc = false;
-		Params.CollisionRadius = 0.0f;
-		Params.OverrideGravityZ = 0.0f;
-		Params.TraceOption = ESuggestProjVelocityTraceOption::DoNotTrace;
-		Params.ActorsToIgnore = ActorsToIgnore;
-		Params.bDrawDebug = false;
-
-		bool bSuggested = UGameplayStatics::SuggestProjectileVelocity(Params, LaunchVelocity);
-
-		if (!bSuggested)
-		{
-			// Fallback: direct vector at throw speed with a slight upward arc
-			LaunchVelocity = (InTargetLoc - InStartLoc).GetSafeNormal() * ThrowSpeed;
-			LaunchVelocity.Z += 200.0f;
-		}
-
-		// 2. Set replication details
 		KinematicFlightParams.bIsFlying = true;
 		KinematicFlightParams.LaunchVelocity = LaunchVelocity;
 
-		// Trigger local launch on server
+
+		OnRep_KinematicFlightParams();
+	}
+	else if (Owner->GetNetMode() != NM_DedicatedServer)
+	{
+
+		bIsFlying = true;
+		KinematicFlightParams.bIsFlying = true;
+		KinematicFlightParams.LaunchVelocity = LaunchVelocity;
 		OnRep_KinematicFlightParams();
 	}
 }
@@ -336,6 +356,7 @@ void UGSGrabbableComponent::OnRep_KinematicFlightParams()
 	if (!Owner) return;
 
 	bIsFlying = KinematicFlightParams.bIsFlying;
+
 	Owner->SetReplicateMovement(true);
 
 	UPrimitiveComponent* PrimitiveRoot = Cast<UPrimitiveComponent>(Owner->GetRootComponent());
@@ -353,11 +374,12 @@ void UGSGrabbableComponent::OnRep_KinematicFlightParams()
 		{
 			PrimitiveRoot->SetCollisionProfileName(OriginalCollisionProfileName);
 			PrimitiveRoot->SetCollisionEnabled(OriginalCollisionEnabled);
-			PrimitiveRoot->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+			PrimitiveRoot->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+			PrimitiveRoot->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Block);
 			PrimitiveRoot->SetSimulatePhysics(false);
 		}
 
-		// Spawn the UProjectileMovementComponent dynamically for the flight duration
+
 		if (!ProjectileComp)
 		{
 			ProjectileComp = NewObject<UProjectileMovementComponent>(Owner, TEXT("GSProjectileMovement"));
@@ -375,13 +397,31 @@ void UGSGrabbableComponent::OnRep_KinematicFlightParams()
 
 		if (ProjectileComp)
 		{
-			// Ignore the owner actor and the throwing character to prevent self-collision on launch
+
 			if (PrimitiveRoot)
 			{
 				PrimitiveRoot->IgnoreActorWhenMoving(Owner, true);
 				if (Owner->GetInstigator())
 				{
 					PrimitiveRoot->IgnoreActorWhenMoving(Owner->GetInstigator(), true);
+
+					for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+					{
+						AActor* OtherActor = *It;
+						if (OtherActor && OtherActor != Owner && OtherActor->GetInstigator() == Owner->GetInstigator())
+						{
+							UGSGrabbableComponent* OtherGrab = OtherActor->FindComponentByClass<UGSGrabbableComponent>();
+							if (OtherGrab && OtherGrab->bIsFlying)
+							{
+								PrimitiveRoot->IgnoreActorWhenMoving(OtherActor, true);
+								UPrimitiveComponent* OtherRoot = Cast<UPrimitiveComponent>(OtherActor->GetRootComponent());
+								if (OtherRoot)
+								{
+									OtherRoot->IgnoreActorWhenMoving(Owner, true);
+								}
+							}
+						}
+					}
 				}
 			}
 
@@ -392,7 +432,7 @@ void UGSGrabbableComponent::OnRep_KinematicFlightParams()
 	}
 	else
 	{
-		// Destroy Projectile Movement when flight ends
+
 		UProjectileMovementComponent* TempProjComp = Owner->FindComponentByClass<UProjectileMovementComponent>();
 		if (TempProjComp)
 		{
@@ -404,28 +444,52 @@ void UGSGrabbableComponent::OnRep_KinematicFlightParams()
 		bool bIsCurrentlyGrabbed = IsGrabbed();
 		if (PrimitiveRoot)
 		{
-			// Clear moving ignore actors when flight ends
 			PrimitiveRoot->IgnoreActorWhenMoving(Owner, false);
 			if (Owner->GetInstigator())
 			{
 				PrimitiveRoot->IgnoreActorWhenMoving(Owner->GetInstigator(), false);
+
+				for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+				{
+					AActor* OtherActor = *It;
+					if (OtherActor && OtherActor != Owner && OtherActor->GetInstigator() == Owner->GetInstigator())
+					{
+						PrimitiveRoot->IgnoreActorWhenMoving(OtherActor, false);
+						UPrimitiveComponent* OtherRoot = Cast<UPrimitiveComponent>(OtherActor->GetRootComponent());
+						if (OtherRoot)
+						{
+							OtherRoot->IgnoreActorWhenMoving(Owner, false);
+						}
+					}
+				}
 			}
 
-			// Teleport parent actor to the mesh landing location (Server-only) and reset mesh relative offset (Server & Client)
-			if (PrimitiveRoot != Owner->GetRootComponent())
+			if (Owner->GetAttachParentActor())
 			{
 				if (Owner->HasAuthority())
 				{
-					FVector LandedLocation = PrimitiveRoot->GetComponentLocation();
-					FRotator LandedRotation = PrimitiveRoot->GetComponentRotation();
-					Owner->SetActorLocationAndRotation(LandedLocation, LandedRotation, false, nullptr, ETeleportType::TeleportPhysics);
+					Owner->SetActorRelativeLocation(FVector::ZeroVector);
+					Owner->SetActorRelativeRotation(FRotator::ZeroRotator);
 				}
 				PrimitiveRoot->SetRelativeLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
+			}
+			else
+			{
+				if (PrimitiveRoot != Owner->GetRootComponent())
+				{
+					if (Owner->HasAuthority())
+					{
+						FVector LandedLocation = PrimitiveRoot->GetComponentLocation();
+						FRotator LandedRotation = PrimitiveRoot->GetComponentRotation();
+						Owner->SetActorLocationAndRotation(LandedLocation, LandedRotation, false, nullptr, ETeleportType::TeleportPhysics);
+					}
+					PrimitiveRoot->SetRelativeLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
+				}
 			}
 
 			PrimitiveRoot->SetCollisionProfileName(OriginalCollisionProfileName);
 			PrimitiveRoot->SetCollisionEnabled(OriginalCollisionEnabled);
-			// We do NOT simulate physics; we let the replicated movement smoothly position the settled item
+
 			PrimitiveRoot->SetSimulatePhysics(false);
 		}
 	}

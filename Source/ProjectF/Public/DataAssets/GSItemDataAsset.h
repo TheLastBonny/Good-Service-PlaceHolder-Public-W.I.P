@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Bonny. All rights reserved.
+
 #pragma once
 
 #include "CoreMinimal.h"
@@ -8,6 +8,58 @@
 #include "GSItemDataAsset.generated.h"
 
 class UStaticMesh;
+class USoundBase;
+class UParticleSystem;
+
+
+UCLASS(Abstract, BlueprintType, EditInlineNew, DefaultToInstanced)
+class PROJECTF_API UGSItemStateAction : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Execute(AActor* Owner) {}
+};
+
+
+UCLASS(BlueprintType, EditInlineNew, meta=(DisplayName="Mesh Override"))
+class PROJECTF_API UGSItemStateAction_MeshOverride : public UGSItemStateAction
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Visual")
+	TObjectPtr<UStaticMesh> MeshOverride = nullptr;
+
+	virtual void Execute(AActor* Owner) override;
+};
+
+
+UCLASS(BlueprintType, EditInlineNew, meta=(DisplayName="Play Sound"))
+class PROJECTF_API UGSItemStateAction_PlaySound : public UGSItemStateAction
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Audio")
+	TObjectPtr<USoundBase> SoundOverride = nullptr;
+
+	virtual void Execute(AActor* Owner) override;
+};
+
+
+UCLASS(BlueprintType, EditInlineNew, meta=(DisplayName="Spawn Particles"))
+class PROJECTF_API UGSItemStateAction_SpawnParticles : public UGSItemStateAction
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Visual")
+	TObjectPtr<UParticleSystem> ParticleOverride = nullptr;
+
+	virtual void Execute(AActor* Owner) override;
+};
+
 
 USTRUCT(BlueprintType)
 struct FGSItemStateDetails
@@ -23,8 +75,8 @@ struct FGSItemStateDetails
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "State")
 	FText StateName;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Visual")
-	TObjectPtr<UStaticMesh> MeshOverride = nullptr;
+	UPROPERTY(EditAnywhere, Instanced, BlueprintReadOnly, Category = "Actions")
+	TArray<TObjectPtr<UGSItemStateAction>> Actions;
 };
 
 UCLASS(BlueprintType)

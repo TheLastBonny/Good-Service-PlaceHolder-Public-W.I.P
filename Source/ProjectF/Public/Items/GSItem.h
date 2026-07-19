@@ -25,6 +25,12 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
+	bool bShowDebugLogs = false;
+
+	UFUNCTION(CallInEditor, Category = "Debug")
+	void ToggleDebugLogs() { bShowDebugLogs = !bShowDebugLogs; }
+
 public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;

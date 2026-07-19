@@ -9,13 +9,20 @@
 #include "GameFramework/Pawn.h"
 #include "DrawDebugHelpers.h"
 #include "AbilitySystemComponent.h"
-#include "AbilitySystemInterface.h"
 #include "Core/GSGameInstance.h"
+#include "Characters/GSPawn.h"
+#include "Core/GSGameplayTags.h"
+#include "Engine/OverlapResult.h"
+#include "Components/GSGrabbableComponent.h"
+#include "Core/GSCameraTriggerVolume.h"
 
 AGSPlayerController::AGSPlayerController()
 {
 	ThrowArcHeight = 300.0f;
 	LastGrabbedActor = nullptr;
+	bIsSpecialModifierDown = false;
+	bLastReleaseWasSpecial = false;
+	bInitialCameraVolumeChecked = false;
 }
 
 void AGSPlayerController::BeginPlay()
@@ -40,7 +47,7 @@ void AGSPlayerController::BeginPlay()
 			UE_LOG(LogTemp, Error, TEXT("Failed to get UEnhancedInputLocalPlayerSubsystem!"));
 		}
 
-		// Print Room Code to Screen if available in GameInstance (persists after level travel)
+
 		if (UGSGameInstance* GSGI = Cast<UGSGameInstance>(GetGameInstance()))
 		{
 			FString Code = GSGI->GetActiveRoomCode();
@@ -50,7 +57,7 @@ void AGSPlayerController::BeginPlay()
 				{
 					GEngine->AddOnScreenDebugMessage(777, 300.0f, FColor::Yellow, FString::Printf(TEXT("ROOM CODE: %s"), *Code));
 				}
-				UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG] Local Player Controller: ROOM CODE is %s"), *Code);
+				
 			}
 		}
 	}
@@ -60,9 +67,29 @@ void AGSPlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
 
-	// If local controller, draw aiming line when aiming tag is active
+
 	if (IsLocalController())
 	{
+		if (!bInitialCameraVolumeChecked)
+		{
+			APawn* P = GetPawn();
+			if (P)
+			{
+				bInitialCameraVolumeChecked = true;
+				P->UpdateOverlaps();
+				TArray<AActor*> OverlappingActors;
+				P->GetOverlappingActors(OverlappingActors);
+				for (AActor* Actor : OverlappingActors)
+				{
+					if (AGSCameraTriggerVolume* Volume = Cast<AGSCameraTriggerVolume>(Actor))
+					{
+						AActor* Target = Volume->GetCustomCameraTarget() ? Volume->GetCustomCameraTarget() : Volume;
+						PushCameraVolume(Volume, Target, Volume->GetBlendTime(), Volume->GetBlendFunction(), Volume->GetBlendExp());
+					}
+				}
+			}
+		}
+
 		APawn* ControlledPawn = GetPawn();
 		if (ControlledPawn && ControlledPawn->Implements<UGSPlayerInterface>())
 		{
@@ -76,7 +103,7 @@ void AGSPlayerController::PlayerTick(float DeltaTime)
 					FVector TargetLoc = HitResult.Location;
 					FVector StartLoc = ControlledPawn->GetActorLocation() + FVector(0.0f, 0.0f, 30.0f);
 					
-					// Draw debug line and sphere for 1 frame
+
 					DrawDebugLine(GetWorld(), StartLoc, TargetLoc, FColor::Orange, false, -1.0f, 0, 2.0f);
 					DrawDebugSphere(GetWorld(), TargetLoc, 20.0f, 16, FColor::Orange, false, -1.0f, 0, 1.5f);
 				}
@@ -130,6 +157,12 @@ void AGSPlayerController::SetupInputComponent()
 		if (AdjustArcAction)
 		{
 			EnhancedInputComponent->BindAction(AdjustArcAction, ETriggerEvent::Triggered, this, &AGSPlayerController::HandleAdjustArc);
+		}
+
+		if (SpecialModifierAction)
+		{
+			EnhancedInputComponent->BindAction(SpecialModifierAction, ETriggerEvent::Started, this, &AGSPlayerController::HandleSpecialPressed);
+			EnhancedInputComponent->BindAction(SpecialModifierAction, ETriggerEvent::Completed, this, &AGSPlayerController::HandleSpecialReleased);
 		}
 	}
 	else
@@ -195,21 +228,64 @@ void AGSPlayerController::Input_AbilityActivate(FGameplayTag InputTag)
 	if (!IsLocalController()) { return; }
 
 	FString NetRole = HasAuthority() ? TEXT("SERVER") : TEXT("CLIENT");
-	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPlayerController::Input_AbilityActivate (Local Only): InputTag: %s, Pawn: %s, LastGrabbedActor: %s"), 
-		*NetRole, *InputTag.ToString(), GetPawn() ? *GetPawn()->GetName() : TEXT("NULL"), 
-		LastGrabbedActor ? *LastGrabbedActor->GetName() : TEXT("NULL"));
+	
 
 	APawn* ControlledPawn = GetPawn();
 	if (ControlledPawn)
 	{
 		if (ControlledPawn->Implements<UGSPlayerInterface>())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPlayerController: Executing local RequestAbilityByTag on Pawn %s."), *NetRole, *ControlledPawn->GetName());
+			if (AGSPawn* GSPawn = Cast<AGSPawn>(ControlledPawn))
+			{
+				if (GSPawn->GetAbilityTagForSlot(InputTag) == GSGameplayTags::Ability_Grab)
+				{
+					TArray<FOverlapResult> Overlaps;
+					FCollisionQueryParams Params;
+					Params.AddIgnoredActor(ControlledPawn);
+					float GrabRadius = 120.0f;
+					float GrabForwardOffset = 80.0f;
+					FCollisionShape Shape = FCollisionShape::MakeSphere(GrabRadius);
+					FVector ScanLocation = ControlledPawn->GetActorLocation() + (ControlledPawn->GetActorForwardVector() * GrabForwardOffset);
+
+					FCollisionObjectQueryParams ObjectQueryParams;
+					ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+					ObjectQueryParams.AddObjectTypesToQuery(ECC_PhysicsBody);
+
+					GetWorld()->OverlapMultiByObjectType(Overlaps, ScanLocation, FQuat::Identity, ObjectQueryParams, Shape, Params);
+
+					float MinDist = TNumericLimits<float>::Max();
+					AActor* BestTarget = nullptr;
+					for (const FOverlapResult& Overlap : Overlaps)
+					{
+						AActor* Candidate = Overlap.GetActor();
+						if (!Candidate) continue;
+
+						UGSGrabbableComponent* GrabComp = Candidate->FindComponentByClass<UGSGrabbableComponent>();
+						if (GrabComp && !GrabComp->IsGrabbed())
+						{
+							float Dist = FVector::DistSquared(ControlledPawn->GetActorLocation(), Candidate->GetActorLocation());
+							if (Dist < MinDist)
+							{
+								MinDist = Dist;
+								BestTarget = Candidate;
+							}
+						}
+					}
+
+					if (BestTarget)
+					{
+						LastGrabbedActor = BestTarget;
+						Server_SetGrabbedActor(BestTarget);
+					}
+					else
+					{
+						LastGrabbedActor = nullptr;
+						Server_SetGrabbedActor(nullptr);
+					}
+				}
+			}
+			
 			IGSPlayerInterface::Execute_RequestAbilityByTag(ControlledPawn, InputTag);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("[ANTIGRAVITY_LOG][%s] AGSPlayerController: ControlledPawn %s does NOT implement UGSPlayerInterface!"), *NetRole, *ControlledPawn->GetName());
 		}
 	}
 }
@@ -225,61 +301,68 @@ void AGSPlayerController::Input_AbilityReleased(FGameplayTag InputTag)
 	if (GetHitResultUnderCursor(ECC_Visibility, false, HitResult))
 	{
 		ClientAimTarget = HitResult.Location;
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPlayerController: Client trace hit location: %s, Component: %s, Actor: %s"), 
-			*NetRole, *ClientAimTarget.ToString(), 
-			HitResult.GetComponent() ? *HitResult.GetComponent()->GetName() : TEXT("NULL"),
-			HitResult.GetActor() ? *HitResult.GetActor()->GetName() : TEXT("NULL"));
+		
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPlayerController: Client trace under cursor missed."), *NetRole);
+		
 	}
 	LastAimTargetLocation = ClientAimTarget;
+	bLastReleaseWasSpecial = bIsSpecialModifierDown;
 
-	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPlayerController::Input_AbilityReleased (Local Only): InputTag: %s, Pawn: %s, LastGrabbedActor: %s, LastAimTargetLocation: %s"), 
-		*NetRole, *InputTag.ToString(), GetPawn() ? *GetPawn()->GetName() : TEXT("NULL"), 
-		LastGrabbedActor ? *LastGrabbedActor->GetName() : TEXT("NULL"), *LastAimTargetLocation.ToString());
+	
 
 	APawn* ControlledPawn = GetPawn();
 	if (ControlledPawn)
 	{
 		if (ControlledPawn->Implements<UGSPlayerInterface>())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPlayerController: Executing local RequestAbilityReleasedByTag on Pawn %s."), *NetRole, *ControlledPawn->GetName());
+			
 			IGSPlayerInterface::Execute_RequestAbilityReleasedByTag(ControlledPawn, InputTag);
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("[ANTIGRAVITY_LOG][%s] AGSPlayerController: ControlledPawn %s does NOT implement UGSPlayerInterface!"), *NetRole, *ControlledPawn->GetName());
+			
 		}
 	}
 
 	if (!HasAuthority())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][%s] AGSPlayerController: Client sending Server_Input_AbilityReleased RPC with Target: %s"), *NetRole, *ClientAimTarget.ToString());
-		Server_Input_AbilityReleased(InputTag, ClientAimTarget);
+		
+		Server_Input_AbilityReleased(InputTag, ClientAimTarget, bIsSpecialModifierDown);
 	}
 }
 
-void AGSPlayerController::Server_Input_AbilityReleased_Implementation(FGameplayTag InputTag, FVector ClientAimTarget)
+void AGSPlayerController::Server_Input_AbilityReleased_Implementation(FGameplayTag InputTag, FVector ClientAimTarget, bool bIsSpecialDown)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][SERVER] AGSPlayerController::Server_Input_AbilityReleased RPC received on Server. Target: %s"), *ClientAimTarget.ToString());
+	
 	LastAimTargetLocation = ClientAimTarget;
+	bLastReleaseWasSpecial = bIsSpecialDown;
 	
 	APawn* ControlledPawn = GetPawn();
 	if (ControlledPawn)
 	{
 		if (ControlledPawn->Implements<UGSPlayerInterface>())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][SERVER] AGSPlayerController: Executing Server-side RequestAbilityReleasedByTag on Pawn %s."), *ControlledPawn->GetName());
+			
 			IGSPlayerInterface::Execute_RequestAbilityReleasedByTag(ControlledPawn, InputTag);
 		}
 	}
 }
 
+void AGSPlayerController::HandleSpecialPressed()
+{
+	bIsSpecialModifierDown = true;
+}
+
+void AGSPlayerController::HandleSpecialReleased()
+{
+	bIsSpecialModifierDown = false;
+}
+
 void AGSPlayerController::Server_SetGrabbedActor_Implementation(AActor* InActor)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][SERVER] AGSPlayerController::Server_SetGrabbedActor RPC received on Server. Actor: %s"), InActor ? *InActor->GetName() : TEXT("NULL"));
+	
 	LastGrabbedActor = InActor;
 }
 
@@ -293,7 +376,7 @@ void AGSPlayerController::ShowAimCursor()
 {
 	if (!IsLocalController()) { return; }
 
-	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][CLIENT] AGSPlayerController::ShowAimCursor called. Setting mouse cursor to visible."));
+	
 	bShowMouseCursor = true;
 
 	APawn* ControlledPawn = GetPawn();
@@ -302,7 +385,7 @@ void AGSPlayerController::ShowAimCursor()
 		FVector2D ScreenPosition;
 		if (ProjectWorldLocationToScreen(ControlledPawn->GetActorLocation(), ScreenPosition))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][CLIENT] AGSPlayerController::ShowAimCursor: Centering mouse on screen position: %s"), *ScreenPosition.ToString());
+			
 			SetMouseLocation(FMath::RoundToInt(ScreenPosition.X), FMath::RoundToInt(ScreenPosition.Y));
 		}
 	}
@@ -312,6 +395,71 @@ void AGSPlayerController::HideAimCursor()
 {
 	if (!IsLocalController()) { return; }
 
-	UE_LOG(LogTemp, Warning, TEXT("[ANTIGRAVITY_LOG][CLIENT] AGSPlayerController::HideAimCursor called. Hiding mouse cursor."));
+	
 	bShowMouseCursor = false;
+}
+
+void AGSPlayerController::PushCameraVolume(AActor* Volume, AActor* CameraTarget, float BlendTime, EViewTargetBlendFunction BlendFunction, float BlendExp)
+{
+	if (!Volume || !CameraTarget)
+	{
+		return;
+	}
+
+	int32 Index = CameraVolumeStack.IndexOfByPredicate([Volume](const FCameraVolumeState& State) {
+		return State.Volume == Volume;
+	});
+
+	if (Index == INDEX_NONE)
+	{
+		FCameraVolumeState NewState;
+		NewState.Volume = Volume;
+		NewState.CameraTarget = CameraTarget;
+		NewState.BlendTime = BlendTime;
+		NewState.BlendFunction = BlendFunction;
+		NewState.BlendExp = BlendExp;
+		CameraVolumeStack.Add(NewState);
+
+		SetViewTargetWithBlend(CameraTarget, BlendTime, BlendFunction, BlendExp);
+	}
+}
+
+void AGSPlayerController::PopCameraVolume(AActor* Volume, float BlendTime, EViewTargetBlendFunction BlendFunction, float BlendExp)
+{
+	if (!Volume)
+	{
+		return;
+	}
+
+	int32 Index = CameraVolumeStack.IndexOfByPredicate([Volume](const FCameraVolumeState& State) {
+		return State.Volume == Volume;
+	});
+
+	if (Index != INDEX_NONE)
+	{
+		CameraVolumeStack.RemoveAt(Index);
+
+		if (CameraVolumeStack.Num() > 0)
+		{
+			const FCameraVolumeState& TopState = CameraVolumeStack.Last();
+			if (AActor* Target = TopState.CameraTarget.Get())
+			{
+				SetViewTargetWithBlend(Target, TopState.BlendTime, TopState.BlendFunction, TopState.BlendExp);
+			}
+		}
+		else
+		{
+			if (APawn* ControlledPawn = GetPawn())
+			{
+				SetViewTargetWithBlend(ControlledPawn, BlendTime, BlendFunction, BlendExp);
+			}
+		}
+	}
+}
+
+void AGSPlayerController::AcknowledgePossession(APawn* P)
+{
+	Super::AcknowledgePossession(P);
+
+	bInitialCameraVolumeChecked = false;
 }
