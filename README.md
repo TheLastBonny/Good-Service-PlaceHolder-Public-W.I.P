@@ -7,6 +7,7 @@
 [![AI](https://img.shields.io/badge/AI-StateTree-green.svg)](https://docs.unrealengine.com/)
 [![Networking](https://img.shields.io/badge/Network-Network%20Prediction-purple.svg)](https://docs.unrealengine.com/)
 [![Future Ready](https://img.shields.io/badge/Verse-UE%206.0%20Ready-black.svg)](https://dev.epicgames.com/)
+[![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](LICENSE)
 
 ## Overview
 
@@ -137,6 +138,8 @@ flowchart TD
 ├── docs/
 │   ├── PROJECT_DOCUMENTATION.md   # Creator & Editor Workflow Guide
 │   └── TECHNICAL_DOCUMENTATION.md # Mover, GAS & Verse Technical Framework Guide
+├── CONTRIBUTING.md                # Community Contribution Guidelines
+├── LICENSE                        # CC BY-NC-SA 4.0 Legal License
 └── ProjectF.uproject              # Unreal Engine 5.8 Project File
 ```
 
@@ -161,7 +164,19 @@ flowchart TD
 
 ---
 
+## License & Community Contributions
+
+This project is licensed under the **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0)**.
+
+* **Non-Commercial:** You are free to view, clone, study, and test the project for non-commercial and educational purposes. Commercial distribution or unauthorized monetization is strictly prohibited.
+* **Attribution:** Any usage or derivative work must retain full attribution to the original author (`TheLastBonny`).
+* **Contributions:** Community members are welcome to contribute via Pull Requests targeting the `develop` branch. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+---
+
 ## Document Links
 
 * [Mover & GAS Technical Framework Guide](docs/TECHNICAL_DOCUMENTATION.md)
 * [ProjectF Creator & Editor Workflow Guide](docs/PROJECT_DOCUMENTATION.md)
+* [Community Contribution Guidelines](CONTRIBUTING.md)
+* [CC BY-NC-SA 4.0 License](LICENSE)
