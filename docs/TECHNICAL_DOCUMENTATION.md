@@ -6,6 +6,24 @@ This document provides a line-by-line architectural breakdown—modeled after co
 
 ---
 
+## Author's Notes: The Paradigm Shift in Game Architecture
+
+> [!NOTE]
+> **A Note on Why We Are Moving Away from Legacy OOP**
+> 
+> If you have worked in game development for any length of time, you have likely felt the pain of traditional Object-Oriented Programming (OOP). In standard engine workflows, creating a new gameplay entity meant subclassing `ACharacter` or `AActor`, overloading virtual functions, scattering member variables across header files, and polling booleans inside `Tick`.
+> 
+> As projects scale, this legacy approach creates three massive bottlenecks:
+> 1. **Inheritance Rigidity:** Monolithic classes like legacy `CharacterMovementComponent` tie locomotion exclusively to humanoids. Extending it for custom physics or vehicles requires fighting thousands of lines of base code.
+> 2. **Polling Overhead & CPU Cache Misses:** Polling states every frame inside `Tick` wastes CPU cycles. Scattering data across memory pointers creates cache misses on modern hardware.
+> 3. **High Iteration Friction:** Requiring C++ re-compilations or Blueprint subclassing for simple asset changes slows down design iteration.
+> 
+> Game development across modern engines is shifting toward **Data-Driven Architecture (POD/DOD)** and **Asynchronous Reactive Concurrency** (such as Verse in UE 6.0 or Luau in Roblox).
+> 
+> I studied and implemented the complex C++ architecture behind Mover, GAS, Network Prediction, StateTree, and Verse specifically to make game creation effortless—so that creators can focus entirely on imagination rather than fighting technical debt. This document details the exact engineering behind that shift.
+
+---
+
 ## Table of Contents
 
 1. [Mover Framework Architecture](#1-mover-framework-architecture)
@@ -220,7 +238,7 @@ void AGSPawn::ProduceInput_Implementation(int32 SimTimeMs, FMoverInputCmdContext
 2. **Why zero out Pitch and Roll in `FRotator(0.f, BaseRotation.Yaw, 0.f)`?**
    When players look up or down, the camera's forward vector tilts toward the sky or ground. If pitch was included, pushing forward on the analog stick would cause characters to move into the ground or fly upward. Isolating `Yaw` guarantees horizontal ground movement.
 3. **Why check `State_Aiming` tag for mouse raycasting?**
-   When players aim to throw items, character rotation must decouples from movement direction. The code performs a mouse cursor raycast (`GetHitResultUnderCursor`), calculates the 2D aim vector, and sets `CharacterInputs.OrientationIntent` independently of `MoveDirection`.
+   When players aim to throw items, character rotation must decouple from movement direction. The code performs a mouse cursor raycast (`GetHitResultUnderCursor`), calculates the 2D aim vector, and sets `CharacterInputs.OrientationIntent` independently of `MoveDirection`.
 
 ---
 

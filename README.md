@@ -12,7 +12,28 @@
 
 **ProjectF (Good Service)** is a multiplayer restaurant and service simulation framework built in **Unreal Engine 5.8**. The project serves as an architectural blueprint for modern multiplayer game design, replacing legacy engine patterns with modular, data-driven frameworks.
 
-The codebase is built on three core pillars:
+---
+
+### Author's Note: The Mindset Shift Toward Data-Driven & Asynchronous Creation
+
+> [!NOTE]
+> **A Note from the Author on Architectural Philosophy**
+> 
+> As game creators, our ultimate goal is to let imagination flow into reality without technical friction. For years, traditional Object-Oriented Programming (OOP) in game engines forced developers into monolithic inheritance trees, endless pointer debugging, and slow iteration cycles. Creating a simple item or mechanic often meant subclassing dozens of Blueprints or fighting fragile state timers.
+> 
+> Game engine architecture is fundamentally shifting away from legacy OOP toward **Data-Driven Architecture (POD/DOD)** and **Asynchronous Reactive Concurrency** (such as Verse in UE 6.0 or Luau in Roblox). In this modern paradigm:
+> 
+> 1. **Data is Pure and Decoupled:** Objects are generic entities driven by data assets rather than rigid C++ class hierarchies.
+> 2. **Asynchronous Execution Eliminates Boilerplate:** Reactive streams and concurrent primitives (`suspends`, `race`, `sync`) replace manual timer handles and CPU-heavy frame polling (`Tick`).
+> 3. **Iteration Speed Surges:** Designers can build items, hazards, tools, and stations in seconds inside the editor without recompiling code.
+> 
+> I dove deep into the complex engineering behind Mover, GAS, StateTree, and Verse specifically to make game creation effortless for creators—so that any imaginative idea can move from concept to playable reality without technical roadblocks. This project is a living blueprint of that vision.
+
+---
+
+## Core Pillars
+
+The codebase is built on three core technical pillars:
 * **Mover Framework:** Constraint-based locomotion integrated with Network Prediction for local client prediction and server-authoritative reconciliation (rollback/replay).
 * **Gameplay Ability System (GAS):** Attribute sets, abilities, and effects bound bidirectionally to movement, items, and world processing stations.
 * **Data-Driven Entity Architecture:** Dynamic items (`AGSItem`) carrying localized ASC components driven by `UGSItemDataAsset` configuration.
@@ -32,12 +53,13 @@ The documentation suite is divided into two distinct manuals below. Click on eit
 
 Modeled after community standards such as Tranek's GAS Documentation, this guide provides modular explanations of low-level physics, networking, and ability systems:
 
+* **Author's Notes & Paradigm Shift:** Why modern game architecture is moving from OOP to Data-Driven Design and Verse asynchronous concurrency.
 * **Mover Framework Architecture:** Decoupling locomotion from `ACharacter` into modular `UBaseMovementMode` objects and `UMoverBlackboard` memory.
 * **Input Production & Network Prediction:** Client prediction buffers, UDP synchronization, and authoritative server reconciliation (`FMoverSyncState::ShouldReconcile`).
 * **Mover vs. Chaos Physics Coexistence:** Addressing asynchronous Physics Substepping desynchronization by implementing kinematic parabolic launches (`LaunchKinematic`).
 * **Bidirectional GAS Integration:** Reactive attribute change delegates (`OnWalkSpeedChanged`) updating physical Mover speed settings dynamically.
 * **Verse / UE 6.0 Paradigm Shift:** Conceptual migration paths to Verse reactive input streams, Software Transactional Memory (STM) prediction, and concurrent async coroutines (`race`, `sync`).
-* **Extending the Framework:** Step-by-step instructions for creating custom C++ Movement Modes and GAS Attribute Sets.
+* **Extending the Framework:** Step-by-Step instructions for creating custom C++ Movement Modes and GAS Attribute Sets.
 
 **[Read Full Technical Documentation](docs/TECHNICAL_DOCUMENTATION.md)**
 
@@ -52,7 +74,7 @@ Modeled after community standards such as Tranek's GAS Documentation, this guide
 
 Designed with the welcoming, step-by-step workflow style of Roblox Studio documentation, this guide details how creators can build game content inside the Unreal Editor without C++ recompilation:
 
-* **Design Philosophy:** Why data-driven entities replace rigid C++ class hierarchies, unlocking creative freedom for dishes, traps, tools, and currency.
+* **Creator's Vision:** How data-driven entities replace rigid C++ class hierarchies, unlocking creative freedom for dishes, traps, tools, and currency.
 * **Creating Items Step-by-Step:** Setting up `UGSItemDataAsset`, assigning default tags, configuring localized attribute sets, and mapping state tags to visual actions (mesh overrides, sound effects, particle emitters).
 * **Configuring Utility Stations:** Setting up `AGSUtilityStation` actors in levels, configuring collision volumes, socket attachments, and base vs. conditional Gameplay Effects (ovens, fryers, sinks).
 * **Customer NPCs, Menus & Rewards:** Setting up level menus (`GSMenuDataAsset`), StateTree AI customer workflows, delivery validation, patience timers, and currency drops (`AGSMoneyItem`).
