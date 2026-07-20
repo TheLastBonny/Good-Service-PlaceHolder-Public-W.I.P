@@ -43,26 +43,24 @@ The codebase is built on three core technical pillars:
 
 ## Documentation Portal
 
-The documentation suite is divided into two distinct manuals below. Click on either section header to expand the embedded interactive summary, or click the direct links to read the full manuals.
+The documentation suite is divided into three specialized manuals below:
 
 <details>
-<summary><b>1. Mover & GAS Technical Framework Guide</b></summary>
+<summary><b>1. 5-Minute Creator Quick Start Guide (No-Code Intro)</b></summary>
 
 <br>
 
-### Architectural Deep-Dive
+### Fast-Track Designer Guide
 
-This technical reference manual provides modular explanations of low-level physics, networking, and ability systems:
+A welcoming, beginner-friendly walkthrough designed to get creators building game content in minutes:
 
-* **Author's Notes & Paradigm Shift:** Why modern game architecture is moving from OOP to Data-Driven Design and Verse asynchronous concurrency.
-* **Mover Framework Architecture:** Decoupling locomotion from `ACharacter` into modular `UBaseMovementMode` objects and `UMoverBlackboard` memory.
-* **Input Production & Network Prediction:** Client prediction buffers, UDP synchronization, and authoritative server reconciliation (`FMoverSyncState::ShouldReconcile`).
-* **Mover vs. Chaos Physics Coexistence:** Addressing asynchronous Physics Substepping desynchronization by implementing kinematic parabolic launches (`LaunchKinematic`).
-* **Bidirectional GAS Integration:** Reactive attribute change delegates (`OnWalkSpeedChanged`) updating physical Mover speed settings dynamically.
-* **Verse / UE 6.0 Paradigm Shift:** Conceptual migration paths to Verse reactive input streams, Software Transactional Memory (STM) prediction, and concurrent async coroutines (`race`, `sync`).
-* **Extending the Framework:** Step-by-Step instructions for creating custom C++ Movement Modes and GAS Attribute Sets.
+* **Traditional OOP vs. ProjectF Comparison:** Clear side-by-side breakdown of time savings and asset maintenance benefits.
+* **Step 1:** Creating your first Item Data Asset (`DA_Steak`) in 2 minutes.
+* **Step 2:** Assigning Gameplay Tags and localized GAS attribute sets.
+* **Step 3:** Adding visual state transitions (Raw -> Cooked -> Burned mesh overrides).
+* **Step 4:** Placing and testing on interactive cooking stations in the level.
 
-**[Read Full Technical Documentation](docs/TECHNICAL_DOCUMENTATION.md)**
+**[Read Quick Start Guide](docs/QUICK_START.md)**
 
 </details>
 
@@ -73,14 +71,35 @@ This technical reference manual provides modular explanations of low-level physi
 
 ### Designer & Content Creator Manual
 
-This creator guide details step-by-step how designers can build game content inside the Unreal Editor without C++ recompilation:
+A comprehensive, non-programmer workflow guide for level designers and technical artists:
 
 * **Creator's Vision:** How data-driven entities replace rigid C++ class hierarchies, unlocking creative freedom for dishes, traps, tools, and currency.
-* **Creating Items Step-by-Step:** Setting up `UGSItemDataAsset`, assigning default tags, configuring localized attribute sets, and mapping state tags to visual actions (mesh overrides, sound effects, particle emitters).
+* **Creating Items Step-by-Step:** Detailed setup of `UGSItemDataAsset`, default tags, and visual action overrides.
 * **Configuring Utility Stations:** Setting up `AGSUtilityStation` actors in levels, configuring collision volumes, socket attachments, and base vs. conditional Gameplay Effects (ovens, fryers, sinks).
 * **Customer NPCs, Menus & Rewards:** Setting up level menus (`GSMenuDataAsset`), StateTree AI customer workflows, delivery validation, patience timers, and currency drops (`AGSMoneyItem`).
 
-**[Read Full Creator Documentation](docs/PROJECT_DOCUMENTATION.md)**
+**[Read Creator Workflow Guide](docs/PROJECT_DOCUMENTATION.md)**
+
+</details>
+
+<details>
+<summary><b>3. Mover & GAS Technical Framework Guide</b></summary>
+
+<br>
+
+### Architectural Deep-Dive
+
+Modeled after community standards such as Tranek's GAS Documentation, this guide provides modular explanations of low-level C++ physics, networking, and ability systems:
+
+* **Author's Notes & Paradigm Shift:** Why modern game architecture is moving from OOP to Data-Driven Design and Verse asynchronous concurrency.
+* **Mover Framework Architecture:** Decoupling locomotion from `ACharacter` into modular `UBaseMovementMode` objects and `UMoverBlackboard` memory.
+* **Input Production & Network Prediction:** Client prediction buffers, UDP synchronization, and authoritative server reconciliation (`FMoverSyncState::ShouldReconcile`).
+* **Mover vs. Chaos Physics Coexistence:** Addressing asynchronous Physics Substepping desynchronization by implementing kinematic parabolic launches (`LaunchKinematic`).
+* **Bidirectional GAS Integration:** Reactive attribute change delegates (`OnWalkSpeedChanged`) updating physical Mover speed settings dynamically.
+* **Verse / UE 6.0 Paradigm Shift:** Conceptual migration paths to Verse reactive input streams, Software Transactional Memory (STM) prediction, and concurrent async coroutines (`race`, `sync`).
+* **Extending the Framework:** Step-by-Step instructions for creating custom C++ Movement Modes and GAS Attribute Sets.
+
+**[Read Technical Framework Guide](docs/TECHNICAL_DOCUMENTATION.md)**
 
 </details>
 
@@ -136,6 +155,7 @@ flowchart TD
 │       ├── Private/               # C++ System Implementations
 │       └── Public/                # C++ System Headers
 ├── docs/
+│   ├── QUICK_START.md             # 5-Minute Creator Quick Start Guide (No-Code)
 │   ├── PROJECT_DOCUMENTATION.md   # Creator & Editor Workflow Guide
 │   └── TECHNICAL_DOCUMENTATION.md # Mover, GAS & Verse Technical Framework Guide
 ├── CONTRIBUTING.md                # Community Contribution Guidelines
@@ -176,7 +196,8 @@ This project is licensed under the **Creative Commons Attribution-NonCommercial-
 
 ## Document Links
 
-* [Mover & GAS Technical Framework Guide](docs/TECHNICAL_DOCUMENTATION.md)
+* [5-Minute Creator Quick Start Guide](docs/QUICK_START.md)
 * [ProjectF Creator & Editor Workflow Guide](docs/PROJECT_DOCUMENTATION.md)
+* [Mover & GAS Technical Framework Guide](docs/TECHNICAL_DOCUMENTATION.md)
 * [Community Contribution Guidelines](CONTRIBUTING.md)
 * [CC BY-NC-SA 4.0 License](LICENSE)
