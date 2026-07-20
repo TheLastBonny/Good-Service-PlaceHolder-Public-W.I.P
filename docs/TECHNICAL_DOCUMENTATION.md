@@ -2,7 +2,7 @@
 
 Welcome to the technical reference manual for the modular movement, physical simulation, and Gameplay Ability System (GAS) framework in Unreal Engine 5.8.
 
-This document is structured as an architectural deep-dive—modeled after community standards such as Tranek's GAS Documentation—providing modular explanations of engine systems, networked physics prediction, bidirectional GAS bindings, and upcoming migration paths toward Verse in Unreal Engine 6.0.
+This document provides a line-by-line architectural breakdown—modeled after community standards such as Tranek's GAS Documentation and the developer guides of Roblox Studio—explaining **how** systems function, **why** specific C++ macros, types, and architectural decisions were made, and how upcoming migration paths map toward Verse in Unreal Engine 6.0.
 
 ---
 
@@ -10,7 +10,7 @@ This document is structured as an architectural deep-dive—modeled after commun
 
 1. [Mover Framework Architecture](#1-mover-framework-architecture)
    - [1.1 Overview & Legacy CharacterMovement Comparison](#11-overview--legacy-charactermovement-comparison)
-   - [1.2 Movement Modes & Blackboard Memory](#12-movement-modes--blackboard-memory)
+   - [1.2 Pawn Initialization & Component Breakdown](#12-pawn-initialization--component-breakdown)
    - [1.3 Input Command Context & Network Prediction](#13-input-command-context--network-prediction)
    - [1.4 Reconciliation, Rollback, and Replay](#14-reconciliation-rollback-and-replay)
    - [1.5 Mover vs. Chaos Physics Coexistence](#15-mover-vs-chaos-physics-coexistence)
@@ -32,13 +32,17 @@ This document is structured as an architectural deep-dive—modeled after commun
 
 ### 1.1 Overview & Legacy CharacterMovement Comparison
 
-In traditional Unreal Engine gameplay architecture, character locomotion is governed by `UCharacterMovementComponent`. While historically functional, `CharacterMovementComponent` presents significant architectural limitations:
+In traditional Unreal Engine gameplay architecture, character locomotion is governed by `UCharacterMovementComponent`. While historically functional, `CharacterMovementComponent` presents structural defects:
 
 * **Monolithic Coupling:** Locomotion logic, collision handling, and networking are tightly coupled inside a single monolithic C++ class containing over 10,000 lines of code.
-* **Class Rigidity:** It is hardcoded to inherit specifically from `ACharacter`, making it unusable for arbitrary `APawn` actors, non-humanoid physics, or custom vehicle systems without heavy hacks.
+* **Class Rigidity:** It is hardcoded to inherit specifically from `ACharacter`, making it unusable for arbitrary `APawn` actors, non-humanoid physics, or custom vehicle systems without heavy workarounds.
 * **Inflexible Network Protocol:** The replication protocol is hardcoded to specific movement states (`MOVE_Walking`, `MOVE_Falling`, `MOVE_Swimming`), making custom movement modes difficult to synchronize reliably over high-latency networks.
 
 Unreal Engine's **Mover** framework (`UCharacterMoverComponent`) solves these structural defects by decoupling physical movement simulation into modular **Movement Modes** and delegating networked state synchronization to Epic Games' standalone **Network Prediction** plugin.
+
+> [!NOTE]
+> **Architectural Advantage of Mover**
+> Unlike legacy `CharacterMovementComponent` which requires inheriting from `ACharacter`, Mover attaches directly to any base `APawn`. This allows pawns to remain lightweight and decoupled from character-specific legacy code.
 
 | Architectural Feature | Legacy `CharacterMovementComponent` | Modern `Mover` Framework |
 | :--- | :--- | :--- |
@@ -48,35 +52,69 @@ Unreal Engine's **Mover** framework (`UCharacterMoverComponent`) solves these st
 | **Shared State Memory** | Scattered member variables across actor classes. | Structured blackboard (`UMoverBlackboard`). |
 | **Constraint Solver** | Direct position offset translations. | Modular kinematic constraint solver. |
 
-### 1.2 Movement Modes & Blackboard Memory
+---
 
-The Mover framework breaks down physical locomotion into discrete, self-contained movement modes inheriting from `UBaseMovementMode`. A pawn can dynamically register or unregister movement modes at runtime.
+### 1.2 Pawn Initialization & Component Breakdown
 
-#### Blackboard Memory (`UMoverBlackboard`)
-
-To prevent state pollution across actor headers, Mover utilizes a dedicated blackboard instance (`UMoverBlackboard`) accessible during simulation ticks. Volatile data—such as current movement base pointers, relative base transforms, and inertia accumulators—are read and written via typed blackboard keys.
-
-For example, when a pawn attaches to or grabs an actor resting on a moving platform, resetting the dynamic movement base in the blackboard prevents unwanted inertia inheritance:
+To understand how Mover initializes physical simulation, consider the component declarations in `AGSPawn.h`:
 
 ```cpp
-if (UCharacterMoverComponent* MoverComp = Pawn->FindComponentByClass<UCharacterMoverComponent>())
+protected:
+	/** Capsule component managing collision bounds in the world */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UCapsuleComponent> CapsuleComponent;
+
+	/** Core Mover component resolving pawn physics simulation tick */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UCharacterMoverComponent> MoverComponent;
+
+	/** Navigation component translating AI pathing intentions to Mover */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UNavMoverComponent> NavMoverComponent;
+```
+
+#### Why are components declared this way?
+
+* `TObjectPtr<T>`: Used instead of raw C++ pointers (`T*`). In Unreal Engine 5+, `TObjectPtr` provides build-time garbage collection tracking, access tracking in development builds, and seamless integration with Unreal's object memory model.
+* `VisibleAnywhere, BlueprintReadOnly`: Exposes component references to Blueprints for inspection without allowing designer scripts to overwrite pointer addresses at runtime.
+
+Now examine the constructor implementation in `AGSPawn.cpp`:
+
+```cpp
+AGSPawn::AGSPawn()
 {
-	if (UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable())
-	{
-		FRelativeBaseInfo EmptyBaseInfo;
-		// Resets dynamic movement base to prevent unexpected physics velocity inheritance
-		SimBlackboard->Set(CommonBlackboard::LastFoundDynamicMovementBase, EmptyBaseInfo);
-	}
+	PrimaryActorTick.bCanEverTick = true;
+
+	// 1. Initialize root collision capsule
+	CapsuleComponent = CreateDefaultSubobject<UCapsuleComponent>(TEXT("CollisionCapsule"));
+	CapsuleComponent->InitCapsuleSize(35.f, 90.f);
+	CapsuleComponent->SetCollisionProfileName(TEXT("Pawn"));
+	CapsuleComponent->CanCharacterStepUpOn = ECB_No;
+	CapsuleComponent->SetShouldUpdatePhysicsVolume(true);
+	CapsuleComponent->SetCanEverAffectNavigation(true);
+	CapsuleComponent->bDynamicObstacle = true;
+	RootComponent = CapsuleComponent;
+
+	// 2. Instantiate modern movement components
+	MoverComponent = CreateDefaultSubobject<UCharacterMoverComponent>(TEXT("MoverComponent"));
+	NavMoverComponent = CreateDefaultSubobject<UNavMoverComponent>(TEXT("NavMoverComponent"));
+
+	// 3. CRITICAL NETWORKING DESIGN DECISION
+	SetReplicateMovement(false);
+	bReplicates = true;
 }
 ```
+
+> [!IMPORTANT]
+> **Why `SetReplicateMovement(false)` is Required**
+> In standard Unreal Engine networking, `SetReplicateMovement(true)` instructs the engine to replicate actor transforms directly via legacy actor channels.
+> Because Mover delegates physical locomotion replication to the **Network Prediction** plugin, standard actor movement replication MUST be disabled (`SetReplicateMovement(false)`). Enabling both causes replication feedback loops, visual jitter, and bandwidth duplication.
+
+---
 
 ### 1.3 Input Command Context & Network Prediction
 
 Mover simulation advances deterministically using an immutable per-tick input container struct: `FMoverInputCmdContext`.
-
-#### Input Production Pipeline
-
-Instead of directly altering velocity vectors upon key presses, player controllers or AI controllers feed movement intentions through the `IMoverInputProducerInterface` interface. The pawn implements `ProduceInput_Implementation`, which constructs an `FMoverInputCmdContext` each tick.
 
 ```
 +------------------------------------+
@@ -102,25 +140,28 @@ Instead of directly altering velocity vectors upon key presses, player controlle
 
 #### Code Implementation (`AGSPawn::ProduceInput_Implementation`)
 
+The pawn implements `IMoverInputProducerInterface` via `ProduceInput_Implementation`. This function runs every tick to package player and AI inputs:
+
 ```cpp
 void AGSPawn::ProduceInput_Implementation(int32 SimTimeMs, FMoverInputCmdContext& InputCmdResult)
 {
-	// 1. Obtain mutable input collection for standard character inputs
+	// 1. Obtain mutable input collection container for default character inputs
 	FCharacterDefaultInputs& CharacterInputs = InputCmdResult.InputCollection.FindOrAddMutableDataByType<FCharacterDefaultInputs>();
 	FVector MoveDirection = FVector::ZeroVector;
 
-	// 2. AI Navigation Pathing Input
+	// 2. AI Navigation Pathing Route
 	if (NavMoverComponent)
 	{
 		FVector NavMoveInputIntent = FVector::ZeroVector;
 		FVector NavMoveInputVelocity = FVector::ZeroVector;
 		if (NavMoverComponent->ConsumeNavMovementData(NavMoveInputIntent, NavMoveInputVelocity))
 		{
+			// If directional intent is zero, fall back to current pathfinding velocity vector
 			MoveDirection = NavMoveInputIntent.IsNearlyZero() ? NavMoveInputVelocity.GetSafeNormal() : NavMoveInputIntent;
 		}
 	}
 
-	// 3. Human Analog Locomotion Input (Camera-Oriented)
+	// 3. Human Analog Locomotion Route (Camera-Oriented Projection)
 	if (MoveDirection.IsNearlyZero() && !CachedMovementInput.IsZero())
 	{
 		FRotator BaseRotation = FRotator::ZeroRotator;
@@ -128,6 +169,8 @@ void AGSPawn::ProduceInput_Implementation(int32 SimTimeMs, FMoverInputCmdContext
 		{
 			BaseRotation = PC->PlayerCameraManager ? PC->PlayerCameraManager->GetCameraRotation() : PC->GetControlRotation();
 		}
+		
+		// Zero out Pitch and Roll to project movement purely onto horizontal XY plane
 		const FRotator YawRotation(0.f, BaseRotation.Yaw, 0.f);
 		const FVector ForwardVector = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 		const FVector RightVector = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
@@ -136,43 +179,92 @@ void AGSPawn::ProduceInput_Implementation(int32 SimTimeMs, FMoverInputCmdContext
 		MoveDirection.Normalize();
 	}
 
-	// Assign direction intent and jump flags to Mover context
+	// 4. Package movement direction and jump states into input context
 	CharacterInputs.SetMoveInput(EMoveInputType::DirectionalIntent, MoveDirection);
 	CharacterInputs.bIsJumpPressed = bCachedJumpPressed;
 	CharacterInputs.bIsJumpJustPressed = bCachedJumpJustPressed;
-	CharacterInputs.OrientationIntent = MoveDirection;
-	CharacterInputs.ControlRotation = GetControlRotation();
 
+	// 5. Orientation Intent: GAS Aiming Overrides vs. Locomotion Direction
+	if (AbilitySystemComponent && AbilitySystemComponent->HasMatchingGameplayTag(GSGameplayTags::State_Aiming))
+	{
+		FVector AimDirection = GetActorForwardVector();
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			FHitResult HitResult;
+			if (PC->GetHitResultUnderCursor(ECC_Visibility, false, HitResult))
+			{
+				FVector Dir = HitResult.Location - GetActorLocation();
+				Dir.Z = 0.0f;
+				if (Dir.Normalize())
+				{
+					AimDirection = Dir;
+				}
+			}
+		}
+		CharacterInputs.OrientationIntent = AimDirection;
+	}
+	else
+	{
+		CharacterInputs.OrientationIntent = MoveDirection;
+	}
+
+	CharacterInputs.ControlRotation = GetControlRotation();
 	bCachedJumpJustPressed = false;
 }
 ```
+
+#### Detailed Code Walkthrough
+
+1. **Why `FindOrAddMutableDataByType<FCharacterDefaultInputs>()`?**
+   Mover uses generic polymorphic collections (`FMoverDataCollection`). This template method retrieves or instantiates structured character input data (`FCharacterDefaultInputs`) without tight type coupling.
+2. **Why zero out Pitch and Roll in `FRotator(0.f, BaseRotation.Yaw, 0.f)`?**
+   When players look up or down, the camera's forward vector tilts toward the sky or ground. If pitch was included, pushing forward on the analog stick would cause characters to move into the ground or fly upward. Isolating `Yaw` guarantees horizontal ground movement.
+3. **Why check `State_Aiming` tag for mouse raycasting?**
+   When players aim to throw items, character rotation must decouples from movement direction. The code performs a mouse cursor raycast (`GetHitResultUnderCursor`), calculates the 2D aim vector, and sets `CharacterInputs.OrientationIntent` independently of `MoveDirection`.
+
+---
 
 ### 1.4 Reconciliation, Rollback, and Replay
 
 When a client simulates movement locally ahead of the server, it records input contexts in a circular buffer managed by the Network Prediction plugin.
 
+```cpp
+bool FMoverSyncState::ShouldReconcile(const FMoverSyncState& AuthorityState) const
+{
+	return (MovementMode != AuthorityState.MovementMode) || 
+	       SyncStateCollection.ShouldReconcile(AuthorityState.SyncStateCollection) ||
+	       MovementModifiers.ShouldReconcile(AuthorityState.MovementModifiers);
+}
+```
+
+#### The Reconciliation Sequence:
+
 1. **Authoritative Server Execution:** The server processes client inputs and broadcasts an authoritative state struct (`FMoverSyncState`).
 2. **Reconciliation Check:** The client compares its historic local state against the server state via `FMoverSyncState::ShouldReconcile`.
-3. **Rollback & Replay:** If a mismatch is detected (e.g., due to packet loss, obstacle collision, or speed modification):
-   - The local client state is immediately restored to the authoritative server position (**Rollback**).
+3. **Rollback & Replay:** If a mismatch is detected:
+   - The local client state is restored to the authoritative server position (**Rollback**).
    - Unacknowledged client inputs stored in the local buffer are re-simulated sequentially in a single frame tick (**Replay**), bringing the client back to present time seamlessly.
+
+> [!TIP]
+> **Why Determinism Matters in Replay**
+> During replay, Mover re-simulates tens of frames in milliseconds. If any sub-system modified non-deterministic random state during simulation ticks, reconciliation would fail repeatedly, creating visual stutter.
+
+---
 
 ### 1.5 Mover vs. Chaos Physics Coexistence
 
 Unreal Engine's **Chaos Physics** engine executes dynamic rigid body simulations asynchronously across sub-threads (**Physics Substepping**).
 
-While Chaos provides excellent dynamic ragdolls and destructibles, its asynchronous substepping presents a fundamental conflict with Network Prediction:
+While Chaos provides dynamic ragdolls and destructibles, its asynchronous substepping presents a fundamental conflict with Network Prediction:
 * **Non-Deterministic Rollbacks:** When Mover rewinds client transform states during a network reconciliation, Chaos cannot rewind physical rigid body velocities synchronously on the exact frame tick. This leads to physical jitter, velocity accumulation errors, and visual snapping in multiplayer settings.
 
 #### Kinematic Solution (`LaunchKinematic`)
 
-To achieve smooth multiplayer synchronization for thrown objects or physical manipulation without physics desynchronization, interactive objects bypass free dynamic Chaos physics during flight. Instead, motion is calculated explicitly via step-by-step kinematic parabolic interpolation (`LaunchKinematic`), ensuring complete determinism during Mover rollbacks.
+To achieve smooth multiplayer synchronization for thrown objects without physics desynchronization, interactive objects bypass free dynamic Chaos physics during flight. Instead, motion is calculated explicitly via step-by-step kinematic parabolic interpolation (`LaunchKinematic`), ensuring complete determinism during Mover rollbacks.
 
 ---
 
 ## 2. Bidirectional Mover + GAS Integration
-
-A core strength of this architecture is the real-time, bidirectional coupling between the Gameplay Ability System (GAS) and the Mover framework.
 
 ```
 +------------------------------------+
@@ -194,8 +286,6 @@ A core strength of this architecture is the real-time, bidirectional coupling be
 
 Rather than executing costly polling routines inside `Tick` to query character speed attributes, the pawn registers numerical change delegates with the Ability System Component (ASC) during setup (`InitAbilityActorInfo`).
 
-#### Delegate Registration & Listener Implementation
-
 ```cpp
 void AGSPawn::InitAbilityActorInfo()
 {
@@ -203,15 +293,15 @@ void AGSPawn::InitAbilityActorInfo()
 
 	if (AbilitySystemComponent && MovementSet)
 	{
-		// Unsubscribe prior listeners to prevent duplicate execution
+		// 1. Remove prior delegate subscriptions to prevent memory leaks or duplicate calls
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
 			MovementSet->GetWalkSpeedAttribute()).RemoveAll(this);
 
-		// Register reactive listener for WalkSpeed attribute updates
+		// 2. Register reactive listener for WalkSpeed attribute updates
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
 			MovementSet->GetWalkSpeedAttribute()).AddUObject(this, &AGSPawn::OnWalkSpeedChanged);
 
-		// Synchronize initial physical max speed setting in Mover
+		// 3. Synchronize initial physical max speed setting in Mover
 		if (MoverComponent)
 		{
 			if (UCommonLegacyMovementSettings* MoveSettings = MoverComponent->FindSharedSettings_Mutable<UCommonLegacyMovementSettings>())
@@ -226,7 +316,7 @@ void AGSPawn::OnWalkSpeedChanged(const FOnAttributeChangeData& Data)
 {
 	if (MoverComponent)
 	{
-		// Dynamically update maximum physical speed constraint in Mover
+		// Dynamically update maximum physical speed constraint in Mover settings
 		if (UCommonLegacyMovementSettings* MoveSettings = MoverComponent->FindSharedSettings_Mutable<UCommonLegacyMovementSettings>())
 		{
 			MoveSettings->MaxSpeed = Data.NewValue;
@@ -234,6 +324,15 @@ void AGSPawn::OnWalkSpeedChanged(const FOnAttributeChangeData& Data)
 	}
 }
 ```
+
+#### Detailed Code Walkthrough
+
+* **Why use delegates instead of `Tick`?**
+  Polling attributes every frame wastes CPU cycles, especially in multiplayer sessions with dozens of pawns. Delegate listeners execute code **only** when a Gameplay Effect modifies `WalkSpeed`, providing zero-cost performance when speed is constant.
+* **Why `FindSharedSettings_Mutable<UCommonLegacyMovementSettings>()`?**
+  Mover encapsulates movement parameters inside shared settings objects. This function retrieves mutable access to the legacy settings container, allowing max movement speed updates on the fly.
+
+---
 
 ### 2.2 Locomotion Input & Ability Cancellation
 
@@ -246,11 +345,14 @@ if (AbilitySystemComponent && AbilitySystemComponent->HasMatchingGameplayTag(GSG
 	{
 		FGameplayTagContainer EmotingTags;
 		EmotingTags.AddTag(GSGameplayTags::State_Emoting);
+		
 		// Locomotion input detected: cancel active Emote abilities
 		AbilitySystemComponent->CancelAbilities(&EmotingTags);
 	}
 }
 ```
+
+---
 
 ### 2.3 Kinematic Trajectory Simulation & Stacking Equations
 
@@ -279,6 +381,7 @@ for (AActor* AttachedActor : CurrAttached)
 			if (bUseDynamicBoundsHeight)
 			{
 				FVector Origin, BoxExtent;
+				// Query physical collision bounds of attached item
 				AttachedActor->GetActorBounds(false, Origin, BoxExtent);
 				float CalculatedHeight = BoxExtent.Z * 2.0f;
 				if (CalculatedHeight > 0.0f)
@@ -301,7 +404,7 @@ Unreal Engine 6.0 introduces **Verse** as a core native programming language. Th
 
 ### 3.1 Reactive Input Streams vs. Polling Cycles
 
-In C++, Mover polls hardware input states every tick to populate `FMoverInputCmdContext`. In Verse, polling loops are replaced by asynchronous event streams (`event`).
+In C++, Mover polls hardware input states every tick to populate `FMoverInputCmdContext`. In Verse, polling loops are replaced by asynchronous event streams (`channel`).
 
 ```verse
 # Conceptual Verse Architecture for Mover Input (UE 6.0)
@@ -317,11 +420,19 @@ ListenToLocomotion()<suspends> : void =
         MoverComponent.ApplyDirectionalIntent(Intent)
 ```
 
+> [!NOTE]
+> **Key Difference in Verse**
+> In Verse, functions marked `<suspends>` can pause execution without blocking OS threads. This makes managing asynchronous user input streams cleaner and safer than C++ tick callbacks.
+
+---
+
 ### 3.2 Software Transactional Memory (STM) Reconciliation
 
-Network prediction rollbacks in C++ require explicit comparison functions (`ShouldReconcile`). In Verse, prediction leverage **Software Transactional Memory (STM)**.
+Network prediction rollbacks in C++ require explicit comparison functions (`ShouldReconcile`). In Verse, prediction leverages **Software Transactional Memory (STM)**.
 
 Transactions execute speculatively. If network desynchronization occurs, the runtime aborts the transaction block and reverts memory state atomically without custom C++ rewind routines.
+
+---
 
 ### 3.3 Concurrent Async Coroutines for Physics
 
@@ -358,6 +469,8 @@ public:
 	virtual void OnSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd, FMoverSyncState& OutputSyncState) override;
 };
 ```
+
+---
 
 ### 4.2 Creating Custom Attributes & Abilities
 
