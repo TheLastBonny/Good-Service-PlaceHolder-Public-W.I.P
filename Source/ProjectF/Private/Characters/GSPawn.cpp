@@ -375,7 +375,14 @@ void AGSPawn::ProduceInput_Implementation(int32 SimTimeMs, FMoverInputCmdContext
 		FVector NavMoveInputVelocity = FVector::ZeroVector;
 		if (NavMoverComponent->ConsumeNavMovementData(NavMoveInputIntent, NavMoveInputVelocity))
 		{
-			MoveDirection = NavMoveInputIntent;
+			if (NavMoveInputIntent.IsNearlyZero() && !NavMoveInputVelocity.IsNearlyZero())
+			{
+				MoveDirection = NavMoveInputVelocity.GetSafeNormal();
+			}
+			else
+			{
+				MoveDirection = NavMoveInputIntent;
+			}
 		}
 	}
 
