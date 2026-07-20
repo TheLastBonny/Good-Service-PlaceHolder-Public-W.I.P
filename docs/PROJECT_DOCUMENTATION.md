@@ -2,7 +2,7 @@
 
 Welcome to the Creator & Editor Workflow Guide for **ProjectF (Good Service)** in Unreal Engine 5.8.
 
-This document is designed with the fluid, welcoming, step-by-step approach seen in creator documentation platforms like Roblox Studio. Whether you are a designer, level builder, or technical artist, this guide explains the core vision of the project, **why** systems were designed this way, and **how** to create game content in the Unreal Editor without touching C++ code.
+This document is designed with a fluid, welcoming, step-by-step approach. Whether you are a designer, level builder, or technical artist, this guide explains the core vision of the project, **why** systems were designed this way, and **how** to create game content in the Unreal Editor without touching C++ code.
 
 ---
 
