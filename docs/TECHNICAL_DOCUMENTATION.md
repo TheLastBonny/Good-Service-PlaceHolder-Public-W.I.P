@@ -2,6 +2,11 @@
 
 Welcome to the master technical reference manual for the modular movement, physical simulation, and Gameplay Ability System (GAS) framework in Unreal Engine 5.8.
 
+> [!IMPORTANT]
+> **Audience Note: C++ Engineers & Technical Artists**
+> This document is an in-depth technical manual intended for C++ programmers and technical artists. It details low-level engine architecture, physics solvers, memory layouts, and C++ source code.
+> If you are a level designer or content creator looking to build gameplay items, stations, and NPCs inside the Unreal Editor without writing code, start with the **[Creator & Editor Workflow Guide](PROJECT_DOCUMENTATION.md)** or the **[5-Minute Creator Quick Start Guide](QUICK_START.md)**.
+
 This document serves as the complete, un-truncated architectural guide—modeled after community reference standards such as Tranek's GAS Documentation—providing full C++ source snippets, line-by-line code breakdowns, mathematical equations, memory layout explanations, and Verse migration patterns for Unreal Engine 6.0.
 
 ---

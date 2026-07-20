@@ -14,7 +14,7 @@ This document serves as the primary manual for level designers, content creators
    - [3.1 The Trinity: Tags + Data Assets + Generic Actor](#31-the-trinity-tags--data-assets--generic-actor)
    - [3.2 Traditional OOP vs. ProjectF Comparison](#32-traditional-oop-vs-projectf-comparison)
 4. [Creator Guide: Creating & Customizing Items](#4-creator-guide-creating--customizing-items)
-   - [4.1 Anotomy of an Item](#41-anotomy-of-an-item)
+   - [4.1 Anatomy of an Item](#41-anatomy-of-an-item)
    - [4.2 Understanding States, Progress Attributes & Actions](#42-understanding-states-progress-attributes--actions)
    - [4.3 Step-by-Step: Creating a Multi-State Item](#43-step-by-step-creating-a-multi-state-item)
    - [4.4 Creative Possibilities: Beyond Food Ingredients](#44-creative-possibilities-beyond-food-ingredients)
@@ -27,7 +27,7 @@ This document serves as the primary manual for level designers, content creators
    - [6.1 NPC Locomotion: Mover + NavMover Component](#61-npc-locomotion-mover--navmover-component)
    - [6.2 StateTree Decision Flow](#62-statetree-decision-flow)
    - [6.3 Restaurant Menus, Order Delivery & Currency Drops](#63-restaurant-menus-order-delivery--currency-drops)
-7. [Best Practices & Advanced Designer Tips](#7-best-practices--advanced-designer-tips)
+7. [Best Practices & Content Organization](#7-best-practices--content-organization)
 8. [Next Steps & References](#8-next-steps--references)
 
 ---
@@ -108,6 +108,9 @@ An item data asset (`UGSItemDataAsset`) contains three primary configuration cat
 2. **Attribute Sets (`TArray<TSubclassOf<UAttributeSet>>`):** Attribute sets instantiated locally on the item's ASC (e.g., `GSCookingAttributeSet` for cooking progress, `GSBurnAttributeSet` for burning progress).
 3. **Item States Map (`TMap<FGameplayTag, FGSItemStateDetails>`):** Maps specific state tags to progress limits and visual state actions.
 
+> [!TIP]
+> **Editor View:** In the Unreal Editor Details Panel for any `GSItemDataAsset`, expand **Item Configuration** to see **Default Tags**, **Attribute Sets**, and **Item States Map**.
+
 ---
 
 ### 4.2 Understanding States, Progress Attributes & Actions
@@ -127,13 +130,13 @@ Each state entry in the **Item States Map** defines how an item behaves when a s
 +-------------------------------------------------------+
 ```
 
-#### Key Concepts:
+#### Friendly Explanation: How Actions Work for Designers
 
-* **Max Progress Attribute:** Specifies which attribute limits this state (e.g., when `CookingSet.CookProgress` reaches `MaxProgressValue`, the item transitions to cooked).
-* **Polymorphic Actions (`UGSItemStateAction`):** Self-contained action triggers executed automatically when a tag is added or removed. Designers can choose:
-  * **Mesh Override Action:** Instantly swaps the item's static mesh asset.
-  * **Play Sound Action:** Plays 3D spatialized audio at the item's location.
-  * **Particle Action:** Spawns particle emitters (e.g., steam or smoke).
+Think of **Actions** like custom plug-in building blocks inside the Unreal Editor. You don't need to write code to tell an item to change its mesh or play a sound when it cooks. Instead, you simply add an Action block to the state:
+
+* **Mesh Override Action:** Tells the item to swap its 3D model (e.g., from raw pink meat to a grilled brown steak).
+* **Play Sound Action:** Tells the item to play a 3D audio effect at its physical location (e.g., sizzling oil or timer ding).
+* **Particle Action:** Spawns a particle emitter at the item's location (e.g., steam, smoke, or sparkle effects).
 
 > [!TIP]
 > **Action Extensibility**
@@ -209,6 +212,10 @@ Stations feature two levels of processing rules:
 [Stove Swaps to GE_BurningHeat] ------> Item Begins Burning Progress
 ```
 
+> [!NOTE]
+> **Station Rule Flexibility**
+> A sink station can apply `GE_WaterFill` to empty cups, while a cutting board station applies `GE_ChopProgress`. The station logic remains universal; only the applied Gameplay Effect classes change!
+
 ---
 
 ### 5.3 Socket Attachment & Snapping
@@ -263,19 +270,19 @@ Customer NPCs navigate the restaurant using a flat, high-performance **StateTree
 [Spawn at Entrance]
         |
         v
-[Assign Table State]  ---> Runs GS Assign Table Task
+[Assign Table State]  ---> Reserves Spot at Table
         |
         v
 [Walk to Table State] ---> Navigates via NavMoverComponent
         |
         v
-[Order Meal State]    ---> Runs GS Choose Random Order Task
+[Order Meal State]    ---> Chooses Order from Level Menu
         |
         v
 [Wait & Eat State]    ---> Patience timer active; awaits food delivery
         |
         v
-[Exit State]          ---> Runs GS Send To Exit Task & Spawns Money
+[Exit State]          ---> Frees Table & Spawns Currency Drop
 ```
 
 ---
@@ -298,11 +305,22 @@ When a player delivers an item to a seated customer, `UGSNPCComponent` validates
 
 ---
 
-## 7. Best Practices & Advanced Designer Tips
+## 7. Best Practices & Content Organization
 
-1. **Tag Taxonomy:** Maintain clean Gameplay Tag hierarchies. Use broad categories (`Food`, `Tool`, `Hazard`) for station filtering and specific sub-tags (`Food.Burger`, `Food.Steak`) for customer orders.
-2. **Reuse Action Objects:** Create generic sound and particle action assets that can be shared across multiple item data assets.
-3. **Patience Balancing:** Adjust customer `MaxPatienceSeconds` inside `UGSNPCComponent` to tune difficulty for single-player versus co-op multiplayer sessions.
+To keep your project clean and organized as it grows:
+
+1. **Folder Organization for Data Assets:**
+   ```
+   Content/
+   ├── DataAssets/
+   │   ├── Items/          # Item Data Assets (DA_Burger, DA_Steak)
+   │   ├── Menus/          # Menu Data Assets (DA_BreakfastMenu, DA_DinnerMenu)
+   │   ├── Stations/       # Utility Station Configs
+   │   └── Actions/        # Shared Action Objects (Mesh/Sound Overrides)
+   ```
+2. **Tag Taxonomy Rules:** Maintain clean Gameplay Tag hierarchies. Use broad categories (`Food`, `Tool`, `Hazard`) for station filtering and specific sub-tags (`Food.Burger`, `Food.Steak`) for customer orders.
+3. **Reusing Shared Actions:** Create generic sound and particle action assets in `Content/DataAssets/Actions/` so they can be assigned to multiple item data assets without duplication.
+4. **Patience Balancing:** Adjust customer `MaxPatienceSeconds` inside `UGSNPCComponent` to tune difficulty for single-player versus co-op multiplayer sessions.
 
 ---
 
