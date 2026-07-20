@@ -45,13 +45,13 @@ The codebase is built on three core technical pillars:
 The documentation suite is divided into two distinct manuals below. Click on either section header to expand the embedded interactive summary, or click the direct links to read the full manuals.
 
 <details>
-<summary><b>1. Mover & GAS Technical Framework Guide (Tranek-Style Reference)</b></summary>
+<summary><b>1. Mover & GAS Technical Framework Guide</b></summary>
 
 <br>
 
 ### Architectural Deep-Dive
 
-Modeled after community standards such as Tranek's GAS Documentation, this guide provides modular explanations of low-level physics, networking, and ability systems:
+This technical reference manual provides modular explanations of low-level physics, networking, and ability systems:
 
 * **Author's Notes & Paradigm Shift:** Why modern game architecture is moving from OOP to Data-Driven Design and Verse asynchronous concurrency.
 * **Mover Framework Architecture:** Decoupling locomotion from `ACharacter` into modular `UBaseMovementMode` objects and `UMoverBlackboard` memory.
@@ -66,13 +66,13 @@ Modeled after community standards such as Tranek's GAS Documentation, this guide
 </details>
 
 <details>
-<summary><b>2. ProjectF Creator & Editor Workflow Guide (Roblox Studio Style)</b></summary>
+<summary><b>2. ProjectF Creator & Editor Workflow Guide</b></summary>
 
 <br>
 
 ### Designer & Content Creator Manual
 
-Designed with the welcoming, step-by-step workflow style of Roblox Studio documentation, this guide details how creators can build game content inside the Unreal Editor without C++ recompilation:
+This creator guide details step-by-step how designers can build game content inside the Unreal Editor without C++ recompilation:
 
 * **Creator's Vision:** How data-driven entities replace rigid C++ class hierarchies, unlocking creative freedom for dishes, traps, tools, and currency.
 * **Creating Items Step-by-Step:** Setting up `UGSItemDataAsset`, assigning default tags, configuring localized attribute sets, and mapping state tags to visual actions (mesh overrides, sound effects, particle emitters).
@@ -135,8 +135,8 @@ flowchart TD
 │       ├── Private/               # C++ System Implementations
 │       └── Public/                # C++ System Headers
 ├── docs/
-│   ├── PROJECT_DOCUMENTATION.md   # Roblox Studio-Style Creator & Editor Guide
-│   └── TECHNICAL_DOCUMENTATION.md # Tranek-Style Mover, GAS & Verse Framework Guide
+│   ├── PROJECT_DOCUMENTATION.md   # Creator & Editor Workflow Guide
+│   └── TECHNICAL_DOCUMENTATION.md # Mover, GAS & Verse Technical Framework Guide
 └── ProjectF.uproject              # Unreal Engine 5.8 Project File
 ```
 

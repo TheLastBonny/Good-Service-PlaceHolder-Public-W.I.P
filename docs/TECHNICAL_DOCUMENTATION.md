@@ -2,7 +2,7 @@
 
 Welcome to the technical reference manual for the modular movement, physical simulation, and Gameplay Ability System (GAS) framework in Unreal Engine 5.8.
 
-This document provides a line-by-line architectural breakdown—modeled after community standards such as Tranek's GAS Documentation and the developer guides of Roblox Studio—explaining **how** systems function, **why** specific C++ macros, types, and architectural decisions were made, and how upcoming migration paths map toward Verse in Unreal Engine 6.0.
+This document provides a line-by-line architectural breakdown explaining **how** systems function, **why** specific C++ macros, types, and architectural decisions were made, and how upcoming migration paths map toward Verse in Unreal Engine 6.0.
 
 ---
 
