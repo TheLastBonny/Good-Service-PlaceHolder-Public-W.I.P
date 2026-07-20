@@ -8,64 +8,62 @@
 [![Networking](https://img.shields.io/badge/Network-Network%20Prediction-purple.svg)](https://docs.unrealengine.com/)
 [![Future Ready](https://img.shields.io/badge/Verse-UE%206.0%20Ready-black.svg)](https://dev.epicgames.com/)
 
-## Project Overview
+## Overview
 
-**ProjectF (Good Service)** is a multiplayer service and restaurant simulation framework built in **Unreal Engine 5.8**. The project serves as an architectural blueprint for modern multiplayer game design, replacing legacy engine patterns with modular, data-driven frameworks.
+**ProjectF (Good Service)** is a multiplayer restaurant and service simulation framework built in **Unreal Engine 5.8**. The project serves as an architectural blueprint for modern multiplayer game design, replacing legacy engine patterns with modular, data-driven frameworks.
 
-### Core Architectural Pillars
-
-* **Mover Framework (`UCharacterMoverComponent`):** Replaces legacy monolithic movement components with modular, constraint-based physical movement. Integrates with the **Network Prediction** plugin for authoritative server replication and client-side prediction with rollback and replay.
-* **Gameplay Ability System (GAS):** Attribute sets, abilities, and effects are bound bidirectionally to movement, items, and world stations.
-* **Data-Driven Entity Architecture:** Dynamic items (`AGSItem`) carry localized Ability System Components and attribute sets driven by `UGSItemDataAsset`.
-* **StateTree AI:** Hierarchical decision trees for AI customer NPCs, driving table reservation, menu ordering, patience timing, and exit routing.
-* **Unreal Engine 6.0 / Verse Readiness:** Designed with future migration paths to Verse asynchronous concurrency, transactional memory (STM), and reactive input streams in mind.
+The codebase is built on three core pillars:
+* **Mover Framework:** Constraint-based locomotion integrated with Network Prediction for local client prediction and server-authoritative reconciliation (rollback/replay).
+* **Gameplay Ability System (GAS):** Attribute sets, abilities, and effects bound bidirectionally to movement, items, and world processing stations.
+* **Data-Driven Entity Architecture:** Dynamic items (`AGSItem`) carrying localized ASC components driven by `UGSItemDataAsset` configuration.
 
 ---
 
 ## Documentation Portal
 
-The complete documentation suite is divided into two distinct sections below. Click on either section header to expand the embedded interactive summary, or click the direct links to read the full markdown manuals.
+The documentation suite is divided into two distinct manuals below. Click on either section header to expand the embedded interactive summary, or click the direct links to read the full manuals.
 
 <details>
-<summary><b>Section 1: Project & Gameplay Architecture Documentation (Mover, GAS & StateTree AI)</b></summary>
+<summary><b>1. Mover & GAS Technical Framework Guide (Tranek-Style Reference)</b></summary>
 
 <br>
 
-### Overview of Architectural Findings
+### Architectural Deep-Dive
 
-* **Mover vs. Legacy CharacterMovement:** Detailed analysis of constraint-based physical simulation versus legacy monolithic `ACharacter` physics.
-* **Kinematic Net Input Context (`FMoverInputCmdContext`):** How client inputs and AI navigation directives are packaged into prediction buffers for network rollback and replay.
-* **Mover vs. Chaos Physics Coexistence:** Addressing asynchronous Physics Substepping challenges by implementing kinematic parabolic launches (`LaunchKinematic`) to avoid desynchronization jitter.
-* **Bidirectional Mover + GAS Synergy:** Real-time attribute delegate listeners dynamically updating physical Mover speed settings upon Gameplay Effect application.
-* **StateTree AI Customer Lifecycle:** Flat decision tree tasks governing NPC table assignment, recipe selection, patience decay, and payment processing.
-* **UE 6.0 Verse Evolution Notes:** Migration guidelines exploring how C++ delegates and StateTree tasks translate into native Verse asynchronous coroutines (`race`, `sync`, `suspending`).
+Modeled after community standards such as Tranek's GAS Documentation, this guide provides modular explanations of low-level physics, networking, and ability systems:
 
-**[Read Full Project Documentation](docs/PROJECT_DOCUMENTATION.md)**
-
-</details>
-
-<details>
-<summary><b>Section 2: Technical & Developer Implementation Manual (C++ Reference & Extension Guide)</b></summary>
-
-<br>
-
-### Developer Guide & Code Implementations
-
-* **Data-Driven Item Creation (`AGSItem` & `UGSItemDataAsset`):** Creating self-contained GAS items with localized attribute sets, polymorphic state actions (static mesh overrides, spatial audio, particle emitters), and tag delegates.
-* **Interactive Utility Stations (`AGSUtilityStation`):** Building world processing stations (ovens, freezers, sinks) that apply base or conditional Gameplay Effects to items based on active tag states.
-* **Abilities, Emotes & Kinematic Stacking:**
-  * Networked 3D spatialized emote playback (`GSAbility_PlayEmote`).
-  * Recursive vertical item stacking height calculations in `GSAbility_Grab`.
-  * Kinematic parabolic flight trajectory calculations in `GSAbility_Launch`.
-* **NPC Order Validation & Payment:** Server-side logic for checking food tags, cooked/burned tag states, item destruction, and physical currency spawning (`AGSMoneyItem`).
+* **Mover Framework Architecture:** Decoupling locomotion from `ACharacter` into modular `UBaseMovementMode` objects and `UMoverBlackboard` memory.
+* **Input Production & Network Prediction:** Client prediction buffers, UDP synchronization, and authoritative server reconciliation (`FMoverSyncState::ShouldReconcile`).
+* **Mover vs. Chaos Physics Coexistence:** Addressing asynchronous Physics Substepping desynchronization by implementing kinematic parabolic launches (`LaunchKinematic`).
+* **Bidirectional GAS Integration:** Reactive attribute change delegates (`OnWalkSpeedChanged`) updating physical Mover speed settings dynamically.
+* **Verse / UE 6.0 Paradigm Shift:** Conceptual migration paths to Verse reactive input streams, Software Transactional Memory (STM) prediction, and concurrent async coroutines (`race`, `sync`).
+* **Extending the Framework:** Step-by-step instructions for creating custom C++ Movement Modes and GAS Attribute Sets.
 
 **[Read Full Technical Documentation](docs/TECHNICAL_DOCUMENTATION.md)**
 
 </details>
 
+<details>
+<summary><b>2. ProjectF Creator & Editor Workflow Guide (Roblox Studio Style)</b></summary>
+
+<br>
+
+### Designer & Content Creator Manual
+
+Designed with the welcoming, step-by-step workflow style of Roblox Studio documentation, this guide details how creators can build game content inside the Unreal Editor without C++ recompilation:
+
+* **Design Philosophy:** Why data-driven entities replace rigid C++ class hierarchies, unlocking creative freedom for dishes, traps, tools, and currency.
+* **Creating Items Step-by-Step:** Setting up `UGSItemDataAsset`, assigning default tags, configuring localized attribute sets, and mapping state tags to visual actions (mesh overrides, sound effects, particle emitters).
+* **Configuring Utility Stations:** Setting up `AGSUtilityStation` actors in levels, configuring collision volumes, socket attachments, and base vs. conditional Gameplay Effects (ovens, fryers, sinks).
+* **Customer NPCs, Menus & Rewards:** Setting up level menus (`GSMenuDataAsset`), StateTree AI customer workflows, delivery validation, patience timers, and currency drops (`AGSMoneyItem`).
+
+**[Read Full Creator Documentation](docs/PROJECT_DOCUMENTATION.md)**
+
+</details>
+
 ---
 
-## System Architecture Diagram
+## Architecture Flowchart
 
 ```mermaid
 flowchart TD
@@ -104,7 +102,7 @@ flowchart TD
 
 ---
 
-## Project Structure
+## Directory Structure
 
 ```
 .
@@ -113,38 +111,23 @@ flowchart TD
 ├── Source/
 │   └── ProjectF/
 │       ├── Private/               # C++ System Implementations
-│       │   ├── Abilities/         # GAS Grab, Launch, Emote abilities
-│       │   ├── Attributes/        # Attribute Sets (Cooking, Health, Speed, Patience)
-│       │   ├── Characters/        # AGSPawn, PlayerController, PlayerState
-│       │   ├── Components/        # Grabbable, Money, NPC Components
-│       │   ├── Core/              # GameInstance, GameMode, GameState, NPCManager
-│       │   ├── DataAssets/        # Item, Menu, Station Data Assets
-│       │   ├── IA/tasks/          # StateTree AI C++ Tasks
-│       │   ├── Items/             # AGSItem, AGSMoneyItem
-│       │   └── Machines/          # AGSUtilityStation, AbilityUpgradeStation
 │       └── Public/                # C++ System Headers
 ├── docs/
-│   ├── PROJECT_DOCUMENTATION.md   # Comprehensive Mover, GAS & StateTree Architecture Guide
-│   └── TECHNICAL_DOCUMENTATION.md # Developer Implementation & Extension Manual
+│   ├── PROJECT_DOCUMENTATION.md   # Roblox Studio-Style Creator & Editor Guide
+│   └── TECHNICAL_DOCUMENTATION.md # Tranek-Style Mover, GAS & Verse Framework Guide
 └── ProjectF.uproject              # Unreal Engine 5.8 Project File
 ```
 
 ---
 
-## System Requirements & Compilation
+## Building the Project
 
 ### Environment Requirements
 * **Unreal Engine:** 5.8
 * **Compiler:** Microsoft Visual Studio 2022 (v143 toolset with C++ Game Development workload)
 * **Target OS:** Windows 10/11 (64-bit)
-* **Key Engine Plugins Enabled:**
-  * Mover (`Mover`, `ChaosMover`, `MoverIntegrations`)
-  * Gameplay Abilities (`GameplayAbilities`)
-  * StateTree (`StateTree`, `GameplayStateTree`)
-  * Network Prediction (`NetworkPrediction`)
-  * Steam Sockets (`OnlineSubsystemSteam`, `SteamSockets`)
 
-### Building the Project
+### Build Steps
 1. Clone the repository:
    ```bash
    git clone https://github.com/TheLastBonny/Good-Service-PlaceHolder-.git
@@ -152,11 +135,11 @@ flowchart TD
 2. Right-click `ProjectF.uproject` and select **Generate Visual Studio project files**.
 3. Open `ProjectF.sln` in Visual Studio 2022.
 4. Set build configuration to **Development Editor** and platform to **Win64**.
-5. Compile solution (`Ctrl + Shift + B`) and launch the editor.
+5. Build solution (`Ctrl + Shift + B`) and launch the editor.
 
 ---
 
 ## Document Links
 
-* [Project & Gameplay Architecture Documentation](docs/PROJECT_DOCUMENTATION.md)
-* [Technical & Developer Implementation Manual](docs/TECHNICAL_DOCUMENTATION.md)
+* [Mover & GAS Technical Framework Guide](docs/TECHNICAL_DOCUMENTATION.md)
+* [ProjectF Creator & Editor Workflow Guide](docs/PROJECT_DOCUMENTATION.md)

@@ -1,361 +1,276 @@
-# Technical Documentation: System Implementation and Extension Manual
+# Mover Component & Gameplay Ability System (GAS) Technical Framework Guide
 
-This document serves as a technical reference manual and implementation guide for developers. It details step-by-step software design for project systems, providing full C++ code snippets and explaining how to extend existing systems to create new items, stations, emotes, manipulation abilities, and NPC behaviors.
+Welcome to the technical reference manual for the modular movement, physical simulation, and Gameplay Ability System (GAS) framework in Unreal Engine 5.8.
 
----
-
-## 1. How to Implement New Objects / Items
-
-All dynamic game objects (raw ingredients, cooked dishes, money items, etc.) are represented by the `AGSItem` class. Rather than relying on rigid C++ class hierarchies, this architecture uses a data-driven approach by parameterizing a single generic actor through a **Data Asset** (`UGSItemDataAsset`).
-
-### Gameplay Ability System (GAS) Architecture in Items
-A key software design pillar is equipping each `AGSItem` actor with its own `UAbilitySystemComponent` (ASC):
-* **First-Class GAS Entities:** Items can directly receive Gameplay Effects (GE) from world stations (e.g., heat from an oven or cold from a freezer).
-* **Self-Contained Local Attributes:** Cooking, cooling, and filling are tracked via local item attribute sets (`AttributeSets`), avoiding pollution of character classes.
-* **Dynamic State Mapping:** Visual variations and logical state changes are managed by linking Gameplay Tags to visual behaviors defined in the item's Data Asset.
-
-```
-+-------------------------------------------------------------+
-|                          AGSItem                            |
-+-------------------------------------------------------------+
-| - AbilitySystemComponent                                    |
-| - AttributeSets (Array of local sets)                       |
-| - ItemData (Ref to UGSItemDataAsset)                        |
-+------------------------------+------------------------------+
-                               |
-                               v  Loads configuration from
-+------------------------------+------------------------------+
-|                    UGSItemDataAsset                         |
-+-------------------------------------------------------------+
-| - DefaultTags (Initial item tags)                           |
-| - AttributeSets (Required attribute set classes)            |
-| - ItemStatesMap (State tag to details map)                  |
-+------------------------------+------------------------------+
-                               |
-                               v  Defines behavior in
-+------------------------------+------------------------------+
-|                   FGSItemStateDetails                       |
-+-------------------------------------------------------------+
-| - MaxProgressAttribute (Limit attribute)                    |
-| - Actions (Array of UGSItemStateAction)                     |
-|     * UGSItemStateAction_MeshOverride                       |
-|     * UGSItemStateAction_PlaySound                          |
-|     * UGSItemStateAction_SpawnParticles                     |
-+-------------------------------------------------------------+
-```
-
-> [!NOTE]
-> **Verse Perspective in Unreal Engine 6.0: Data-Driven Native Objects**
-> In future **Verse programming in Unreal Engine 6.0**, traditional Data Assets like `UGSItemDataAsset` and rigid C++ structs will be replaced by native data types (`struct` and `class` with immutable fields). Visual state transition behaviors will be bound directly to asynchronous event channels.
-
-### Item Data Asset Definition (`GSItemDataAsset.h`)
-The Data Asset defines state maps and associated polymorphic actions (static mesh overrides, sound effects, particle spawners):
-
-```cpp
-#pragma once
-
-#include "CoreMinimal.h"
-#include "Engine/DataAsset.h"
-#include "GameplayTagContainer.h"
-#include "AttributeSet.h"
-#include "GSItemDataAsset.generated.h"
-
-// Abstract base class for actions associated with item state transitions
-UCLASS(Abstract, BlueprintType, EditInlineNew, DefaultToInstanced)
-class PROJECTF_API UGSItemStateAction : public UObject
-{
-	GENERATED_BODY()
-public:
-	virtual void Execute(AActor* Owner) {}
-};
-
-// Action to override item's static mesh
-UCLASS(BlueprintType, EditInlineNew, meta=(DisplayName="Mesh Override"))
-class PROJECTF_API UGSItemStateAction_MeshOverride : public UGSItemStateAction
-{
-	GENERATED_BODY()
-public:
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Visual")
-	TObjectPtr<UStaticMesh> MeshOverride = nullptr;
-
-	virtual void Execute(AActor* Owner) override;
-};
-
-// Action to play sound effect
-UCLASS(BlueprintType, EditInlineNew, meta=(DisplayName="Play Sound"))
-class PROJECTF_API UGSItemStateAction_PlaySound : public UGSItemStateAction
-{
-	GENERATED_BODY()
-public:
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Audio")
-	TObjectPtr<USoundBase> SoundOverride = nullptr;
-
-	virtual void Execute(AActor* Owner) override;
-};
-
-// Structure detailing item behavior for a specific state tag
-USTRUCT(BlueprintType)
-struct FGSItemStateDetails
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "State")
-	FGameplayAttribute MaxProgressAttribute;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "State")
-	float MaxProgressValue = 100.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "State")
-	FText StateName;
-
-	UPROPERTY(EditAnywhere, Instanced, BlueprintReadOnly, Category = "Actions")
-	TArray<TObjectPtr<UGSItemStateAction>> Actions;
-};
-
-UCLASS(BlueprintType)
-class PROJECTF_API UGSItemDataAsset : public UPrimaryDataAsset
-{
-	GENERATED_BODY()
-public:
-	UGSItemDataAsset();
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Configuration")
-	FGameplayTagContainer DefaultTags;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Configuration")
-	TArray<TSubclassOf<UAttributeSet>> AttributeSets;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Configuration")
-	TMap<FGameplayTag, FGSItemStateDetails> ItemStatesMap;
-
-	UFUNCTION(BlueprintCallable, Category = "Item")
-	FGSItemStateDetails GetStateDetails(FGameplayTag StateTag) const;
-};
-```
-
-### Action Execution Logic (`GSItemDataAsset.cpp`)
-Polymorphic actions execute local visual and auditory state changes cleanly:
-```cpp
-void UGSItemStateAction_MeshOverride::Execute(AActor* Owner)
-{
-	if (!Owner || !MeshOverride) return;
-
-	UStaticMeshComponent* MeshComp = Cast<UStaticMeshComponent>(Owner->GetComponentByClass(UStaticMeshComponent::StaticClass()));
-	if (MeshComp)
-	{
-		MeshComp->SetStaticMesh(MeshOverride);
-	}
-}
-
-void UGSItemStateAction_PlaySound::Execute(AActor* Owner)
-{
-	if (!Owner || !SoundOverride) return;
-	if (Owner->GetNetMode() != NM_DedicatedServer)
-	{
-		UGameplayStatics::PlaySoundAtLocation(Owner, SoundOverride, Owner->GetActorLocation());
-	}
-}
-```
-
-### Event Binding in Items (`GSItem.cpp`)
-In `AGSItem::BeginPlay`, we register listeners to tag delegates on the item's ASC, triggering actions when state tags are added or removed:
-```cpp
-void AGSItem::BeginPlay()
-{
-	Super::BeginPlay();
-
-	if (AbilitySystemComponent)
-	{
-		AbilitySystemComponent->InitAbilityActorInfo(this, this);
-
-		// Instantiate required attribute sets defined in Data Asset
-		if (ItemData)
-		{
-			for (const TSubclassOf<UAttributeSet>& SetClass : ItemData->AttributeSets)
-			{
-				AbilitySystemComponent->InitStats(SetClass, nullptr);
-			}
-
-			// Add initial tags and register state callbacks
-			if (ItemData->DefaultTags.Num() > 0)
-			{
-				AbilitySystemComponent->AddLooseGameplayTags(ItemData->DefaultTags, 1, EGameplayTagReplicationState::TagOnly);
-			}
-
-			for (const TPair<FGameplayTag, FGSItemStateDetails>& StatePair : ItemData->ItemStatesMap)
-			{
-				const FGameplayTag& StateTag = StatePair.Key;
-				const FGSItemStateDetails& Details = StatePair.Value;
-
-				if (Details.MaxProgressAttribute.IsValid())
-				{
-					AbilitySystemComponent->SetNumericAttributeBase(Details.MaxProgressAttribute, Details.MaxProgressValue);
-				}
-
-				// Subscribe item to state tag activation
-				AbilitySystemComponent->RegisterGameplayTagEvent(StateTag, EGameplayTagEventType::NewOrRemoved)
-					.AddUObject(this, &AGSItem::OnStateTagChanged);
-			}
-		}
-	}
-}
-```
+This document is structured as an architectural deep-dive—modeled after community standards such as Tranek's GAS Documentation—providing modular explanations of engine systems, networked physics prediction, bidirectional GAS bindings, and upcoming migration paths toward Verse in Unreal Engine 6.0.
 
 ---
 
-## 2. How to Create Interactive Stations (`AGSUtilityStation`)
+## Table of Contents
 
-Utility stations (`AGSUtilityStation`) are interactive static world actors responsible for applying processing logic (cooking, cooling, draining) to items.
-
-### Collision and Item Detection
-The station collision volume (`StationVolume`) ignores pawns and reacts only to actors implementing `IAbilitySystemInterface` with tags allowed in `AllowedItemTags`.
-* **Item Placement:** Upon collision overlap, if an item is not held by a pawn, the station adds it to `PlacedItems` and calls `OnItemAddedToStation`.
-* **Socket Attachment:** If free attachment sockets (`StationSockets`) exist, the item physically attaches to the 3D model in the first available socket via `GetFirstFreeSocket()`.
-* **Item Grab:** When a player grabs (`Grab`) an item on the station, callback `OnPlacedItemGrabbed` removes the item from the station's placement array, clears active effects, and restores physics control to the pawn.
-
-### Base and Conditional Effect Application (`UpdateEffectsForItem`)
-This function manages server-side dynamic processing logic. It applies station base effects (`EffectsToApply`) or switches to state-conditional effects (`ConditionalEffects`) if an item reaches a specific state (e.g., dish is cooked and begins burning).
-
-```cpp
-void AGSUtilityStation::UpdateEffectsForItem(AActor* Item)
-{
-	if (!HasAuthority() || !IsValid(Item)) { return; }
-
-	UAbilitySystemComponent* TargetASC = nullptr;
-	if (IAbilitySystemInterface* ASCInterface = Cast<IAbilitySystemInterface>(Item))
-	{
-		TargetASC = ASCInterface->GetAbilitySystemComponent();
-	}
-	if (!TargetASC) { return; }
-
-	// 1. Clear previous station Gameplay Effects
-	TArray<FActiveGameplayEffectHandle>* ActiveHandles = AppliedEffectsMap.Find(Item);
-	if (ActiveHandles)
-	{
-		for (const FActiveGameplayEffectHandle& Handle : *ActiveHandles)
-		{
-			if (Handle.IsValid())
-			{
-				TargetASC->RemoveActiveGameplayEffect(Handle);
-			}
-		}
-		ActiveHandles->Empty();
-	}
-	else
-	{
-		ActiveHandles = &AppliedEffectsMap.Add(Item);
-	}
-
-	// 2. Evaluate and apply conditional effects based on item active tags
-	bool bAppliedConditional = false;
-	for (const FGSConditionalEffectEntry& Entry : ConditionalEffectsFromData)
-	{
-		if (Entry.StateTag.IsValid() && TargetASC->HasMatchingGameplayTag(Entry.StateTag))
-		{
-			for (const TSubclassOf<UGameplayEffect>& EffectClass : Entry.EffectsToApply)
-			{
-				if (EffectClass)
-				{
-					FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
-					EffectContext.AddInstigator(this, this);
-					FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(EffectClass, 1.0f, EffectContext);
-					if (SpecHandle.IsValid())
-					{
-						FActiveGameplayEffectHandle Handle = AbilitySystemComponent->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
-						if (Handle.IsValid())
-						{
-							ActiveHandles->Add(Handle);
-							bAppliedConditional = true;
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// 3. If no conditional tags active, apply default base station effects
-	if (!bAppliedConditional)
-	{
-		for (const TSubclassOf<UGameplayEffect>& EffectClass : EffectsToApply)
-		{
-			if (EffectClass)
-			{
-				FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
-				EffectContext.AddInstigator(this, this);
-				FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(EffectClass, 1.0f, EffectContext);
-				if (SpecHandle.IsValid())
-				{
-					FActiveGameplayEffectHandle Handle = AbilitySystemComponent->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
-					if (Handle.IsValid())
-					{
-						ActiveHandles->Add(Handle);
-					}
-				}
-			}
-		}
-	}
-}
-```
+1. [Mover Framework Architecture](#1-mover-framework-architecture)
+   - [1.1 Overview & Legacy CharacterMovement Comparison](#11-overview--legacy-charactermovement-comparison)
+   - [1.2 Movement Modes & Blackboard Memory](#12-movement-modes--blackboard-memory)
+   - [1.3 Input Command Context & Network Prediction](#13-input-command-context--network-prediction)
+   - [1.4 Reconciliation, Rollback, and Replay](#14-reconciliation-rollback-and-replay)
+   - [1.5 Mover vs. Chaos Physics Coexistence](#15-mover-vs-chaos-physics-coexistence)
+2. [Bidirectional Mover + GAS Integration](#2-bidirectional-mover--gas-integration)
+   - [2.1 Reactive Attribute Binding (WalkSpeed)](#21-reactive-attribute-binding-walkspeed)
+   - [2.2 Locomotion Input & Ability Cancellation](#22-locomotion-input--ability-cancellation)
+   - [2.3 Kinematic Trajectory Simulation & Stacking Equations](#23-kinematic-trajectory-simulation--stacking-equations)
+3. [Verse & Unreal Engine 6.0 Paradigm Shift](#3-verse--unreal-engine-60-paradigm-shift)
+   - [3.1 Reactive Input Streams vs. Polling Cycles](#31-reactive-input-streams-vs-polling-cycles)
+   - [3.2 Software Transactional Memory (STM) Reconciliation](#32-software-transactional-memory-stm-reconciliation)
+   - [3.3 Concurrent Async Coroutines for Physics](#33-concurrent-async-coroutines-for-physics)
+4. [Extending the Framework](#4-extending-the-framework)
+   - [4.1 Creating Custom Movement Modes in C++](#41-creating-custom-movement-modes-in-c)
+   - [4.2 Creating Custom Attributes & Abilities](#42-creating-custom-attributes--abilities)
 
 ---
 
-## 3. Ability System (GAS), Emotes, and Grab/Launch Mechanics
+## 1. Mover Framework Architecture
 
-### Emote System and Multicast RPCs
-The emote system plays networked 3D spatialized audio via `GSAbility_PlayEmote` and pawn RPCs:
-1. Server receives call and invokes Multicast RPC `MulticastPlayEmoteSound_Implementation`.
-2. Clients load audio synchronously and spawn a 3D sound component.
-3. 3D spatialization parameters (attenuation and falloff distance) are configured based on sound radius specified in `UGSEmoteDefinition`.
+### 1.1 Overview & Legacy CharacterMovement Comparison
+
+In traditional Unreal Engine gameplay architecture, character locomotion is governed by `UCharacterMovementComponent`. While historically functional, `CharacterMovementComponent` presents significant architectural limitations:
+
+* **Monolithic Coupling:** Locomotion logic, collision handling, and networking are tightly coupled inside a single monolithic C++ class containing over 10,000 lines of code.
+* **Class Rigidity:** It is hardcoded to inherit specifically from `ACharacter`, making it unusable for arbitrary `APawn` actors, non-humanoid physics, or custom vehicle systems without heavy hacks.
+* **Inflexible Network Protocol:** The replication protocol is hardcoded to specific movement states (`MOVE_Walking`, `MOVE_Falling`, `MOVE_Swimming`), making custom movement modes difficult to synchronize reliably over high-latency networks.
+
+Unreal Engine's **Mover** framework (`UCharacterMoverComponent`) solves these structural defects by decoupling physical movement simulation into modular **Movement Modes** and delegating networked state synchronization to Epic Games' standalone **Network Prediction** plugin.
+
+| Architectural Feature | Legacy `CharacterMovementComponent` | Modern `Mover` Framework |
+| :--- | :--- | :--- |
+| **Object Hierarchy** | Monolithic class bound exclusively to `ACharacter`. | Modular component attachable to any `APawn`. |
+| **Movement Logic** | Built-in monolithic state machine. | Pluggable `UBaseMovementMode` C++ sub-objects. |
+| **Network Replication** | Legacy custom RPC and saved move buffer. | Delegated to generic **Network Prediction** plugin. |
+| **Shared State Memory** | Scattered member variables across actor classes. | Structured blackboard (`UMoverBlackboard`). |
+| **Constraint Solver** | Direct position offset translations. | Modular kinematic constraint solver. |
+
+### 1.2 Movement Modes & Blackboard Memory
+
+The Mover framework breaks down physical locomotion into discrete, self-contained movement modes inheriting from `UBaseMovementMode`. A pawn can dynamically register or unregister movement modes at runtime.
+
+#### Blackboard Memory (`UMoverBlackboard`)
+
+To prevent state pollution across actor headers, Mover utilizes a dedicated blackboard instance (`UMoverBlackboard`) accessible during simulation ticks. Volatile data—such as current movement base pointers, relative base transforms, and inertia accumulators—are read and written via typed blackboard keys.
+
+For example, when a pawn attaches to or grabs an actor resting on a moving platform, resetting the dynamic movement base in the blackboard prevents unwanted inertia inheritance:
 
 ```cpp
-void AGSPawn::MulticastPlayEmoteSound_Implementation(UGSEmoteDefinition* EmoteDef)
+if (UCharacterMoverComponent* MoverComp = Pawn->FindComponentByClass<UCharacterMoverComponent>())
 {
-	if (!EmoteDef) return;
-
-	MulticastStopEmoteSound();
-
-	USoundBase* SoundToPlay = EmoteDef->EmoteSound.LoadSynchronous();
-	if (!SoundToPlay || GetNetMode() == NM_DedicatedServer) return;
-
-	if (EmoteDef->bPlayAs3DSound)
+	if (UMoverBlackboard* SimBlackboard = MoverComp->GetSimBlackboard_Mutable())
 	{
-		ActiveEmoteAudioComponent = UGameplayStatics::SpawnSoundAttached(
-			SoundToPlay, GetRootComponent(), NAME_None, FVector::ZeroVector, FRotator::ZeroRotator,
-			EAttachLocation::KeepRelativeOffset, true, 1.f, 1.f, 0.f, nullptr, nullptr, true
-		);
-
-		if (ActiveEmoteAudioComponent)
-		{
-			ActiveEmoteAudioComponent->bAllowSpatialization = true;
-			ActiveEmoteAudioComponent->AttenuationOverrides.bSpatialize = true;
-			ActiveEmoteAudioComponent->AttenuationOverrides.AttenuationShape = EAttenuationShape::Sphere;
-			ActiveEmoteAudioComponent->AttenuationOverrides.AttenuationShapeExtents = FVector(EmoteDef->SoundRadius * 0.1f, 0.f, 0.f);
-			ActiveEmoteAudioComponent->AttenuationOverrides.FalloffDistance = EmoteDef->SoundRadius * 0.9f;
-			ActiveEmoteAudioComponent->AdjustAttenuation(ActiveEmoteAudioComponent->AttenuationOverrides);
-		}
-	}
-	else
-	{
-		ActiveEmoteAudioComponent = UGameplayStatics::SpawnSound2D(GetWorld(), SoundToPlay);
+		FRelativeBaseInfo EmptyBaseInfo;
+		// Resets dynamic movement base to prevent unexpected physics velocity inheritance
+		SimBlackboard->Set(CommonBlackboard::LastFoundDynamicMovementBase, EmptyBaseInfo);
 	}
 }
 ```
 
-### Vertical Grab and Stacking (`GSAbility_Grab`)
-Grab ability (`UGSAbility_Grab`) calculates relative placement positions overhead:
-* If it is the first item, it aligns with front socket position.
-* If pawn already carries items, ability recursively calculates cumulative stack height:
+### 1.3 Input Command Context & Network Prediction
+
+Mover simulation advances deterministically using an immutable per-tick input container struct: `FMoverInputCmdContext`.
+
+#### Input Production Pipeline
+
+Instead of directly altering velocity vectors upon key presses, player controllers or AI controllers feed movement intentions through the `IMoverInputProducerInterface` interface. The pawn implements `ProduceInput_Implementation`, which constructs an `FMoverInputCmdContext` each tick.
+
+```
++------------------------------------+
+|  Human Key Input / AI Navigation   |
++------------------------------------+
+                  |
+                  v
++------------------------------------+
+|    AGSPawn::ProduceInput()         |
++------------------------------------+
+                  |
+                  v  Populates FCharacterDefaultInputs
++------------------------------------+
+|      FMoverInputCmdContext         |
++------------------------------------+
+       |                     |
+       v Local Simulation    v Sent via UDP
++--------------+     +------------------------+
+| Local Solver |     | Network Prediction     |
+| (Predictive) |     | Buffer (Server Bound)  |
++--------------+     +------------------------+
+```
+
+#### Code Implementation (`AGSPawn::ProduceInput_Implementation`)
+
+```cpp
+void AGSPawn::ProduceInput_Implementation(int32 SimTimeMs, FMoverInputCmdContext& InputCmdResult)
+{
+	// 1. Obtain mutable input collection for standard character inputs
+	FCharacterDefaultInputs& CharacterInputs = InputCmdResult.InputCollection.FindOrAddMutableDataByType<FCharacterDefaultInputs>();
+	FVector MoveDirection = FVector::ZeroVector;
+
+	// 2. AI Navigation Pathing Input
+	if (NavMoverComponent)
+	{
+		FVector NavMoveInputIntent = FVector::ZeroVector;
+		FVector NavMoveInputVelocity = FVector::ZeroVector;
+		if (NavMoverComponent->ConsumeNavMovementData(NavMoveInputIntent, NavMoveInputVelocity))
+		{
+			MoveDirection = NavMoveInputIntent.IsNearlyZero() ? NavMoveInputVelocity.GetSafeNormal() : NavMoveInputIntent;
+		}
+	}
+
+	// 3. Human Analog Locomotion Input (Camera-Oriented)
+	if (MoveDirection.IsNearlyZero() && !CachedMovementInput.IsZero())
+	{
+		FRotator BaseRotation = FRotator::ZeroRotator;
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			BaseRotation = PC->PlayerCameraManager ? PC->PlayerCameraManager->GetCameraRotation() : PC->GetControlRotation();
+		}
+		const FRotator YawRotation(0.f, BaseRotation.Yaw, 0.f);
+		const FVector ForwardVector = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+		const FVector RightVector = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+
+		MoveDirection = (ForwardVector * CachedMovementInput.Y) + (RightVector * CachedMovementInput.X);
+		MoveDirection.Normalize();
+	}
+
+	// Assign direction intent and jump flags to Mover context
+	CharacterInputs.SetMoveInput(EMoveInputType::DirectionalIntent, MoveDirection);
+	CharacterInputs.bIsJumpPressed = bCachedJumpPressed;
+	CharacterInputs.bIsJumpJustPressed = bCachedJumpJustPressed;
+	CharacterInputs.OrientationIntent = MoveDirection;
+	CharacterInputs.ControlRotation = GetControlRotation();
+
+	bCachedJumpJustPressed = false;
+}
+```
+
+### 1.4 Reconciliation, Rollback, and Replay
+
+When a client simulates movement locally ahead of the server, it records input contexts in a circular buffer managed by the Network Prediction plugin.
+
+1. **Authoritative Server Execution:** The server processes client inputs and broadcasts an authoritative state struct (`FMoverSyncState`).
+2. **Reconciliation Check:** The client compares its historic local state against the server state via `FMoverSyncState::ShouldReconcile`.
+3. **Rollback & Replay:** If a mismatch is detected (e.g., due to packet loss, obstacle collision, or speed modification):
+   - The local client state is immediately restored to the authoritative server position (**Rollback**).
+   - Unacknowledged client inputs stored in the local buffer are re-simulated sequentially in a single frame tick (**Replay**), bringing the client back to present time seamlessly.
+
+### 1.5 Mover vs. Chaos Physics Coexistence
+
+Unreal Engine's **Chaos Physics** engine executes dynamic rigid body simulations asynchronously across sub-threads (**Physics Substepping**).
+
+While Chaos provides excellent dynamic ragdolls and destructibles, its asynchronous substepping presents a fundamental conflict with Network Prediction:
+* **Non-Deterministic Rollbacks:** When Mover rewinds client transform states during a network reconciliation, Chaos cannot rewind physical rigid body velocities synchronously on the exact frame tick. This leads to physical jitter, velocity accumulation errors, and visual snapping in multiplayer settings.
+
+#### Kinematic Solution (`LaunchKinematic`)
+
+To achieve smooth multiplayer synchronization for thrown objects or physical manipulation without physics desynchronization, interactive objects bypass free dynamic Chaos physics during flight. Instead, motion is calculated explicitly via step-by-step kinematic parabolic interpolation (`LaunchKinematic`), ensuring complete determinism during Mover rollbacks.
+
+---
+
+## 2. Bidirectional Mover + GAS Integration
+
+A core strength of this architecture is the real-time, bidirectional coupling between the Gameplay Ability System (GAS) and the Mover framework.
+
+```
++------------------------------------+
+|  Gameplay Ability System (GAS)     |
+|  - AttributeSets (WalkSpeed)       |
+|  - GameplayTags (State.Aiming)     |
++------------------------------------+
+       ^                      |
+       | Ability Cancel       | Delegate Callback
+       | Signal               v (OnWalkSpeedChanged)
++------------------------------------+
+|  UCharacterMoverComponent          |
+|  - MaxSpeed Settings Update        |
+|  - Input Orientation Overrides     |
++------------------------------------+
+```
+
+### 2.1 Reactive Attribute Binding (WalkSpeed)
+
+Rather than executing costly polling routines inside `Tick` to query character speed attributes, the pawn registers numerical change delegates with the Ability System Component (ASC) during setup (`InitAbilityActorInfo`).
+
+#### Delegate Registration & Listener Implementation
+
+```cpp
+void AGSPawn::InitAbilityActorInfo()
+{
+	Super::InitAbilityActorInfo();
+
+	if (AbilitySystemComponent && MovementSet)
+	{
+		// Unsubscribe prior listeners to prevent duplicate execution
+		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+			MovementSet->GetWalkSpeedAttribute()).RemoveAll(this);
+
+		// Register reactive listener for WalkSpeed attribute updates
+		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(
+			MovementSet->GetWalkSpeedAttribute()).AddUObject(this, &AGSPawn::OnWalkSpeedChanged);
+
+		// Synchronize initial physical max speed setting in Mover
+		if (MoverComponent)
+		{
+			if (UCommonLegacyMovementSettings* MoveSettings = MoverComponent->FindSharedSettings_Mutable<UCommonLegacyMovementSettings>())
+			{
+				MoveSettings->MaxSpeed = MovementSet->GetWalkSpeed();
+			}
+		}
+	}
+}
+
+void AGSPawn::OnWalkSpeedChanged(const FOnAttributeChangeData& Data)
+{
+	if (MoverComponent)
+	{
+		// Dynamically update maximum physical speed constraint in Mover
+		if (UCommonLegacyMovementSettings* MoveSettings = MoverComponent->FindSharedSettings_Mutable<UCommonLegacyMovementSettings>())
+		{
+			MoveSettings->MaxSpeed = Data.NewValue;
+		}
+	}
+}
+```
+
+### 2.2 Locomotion Input & Ability Cancellation
+
+When a player performs locomotion while executing passive abilities (e.g., emotes), Mover input production inspects active GAS tags and triggers ability cancellations instantly upon motion detection.
+
+```cpp
+if (AbilitySystemComponent && AbilitySystemComponent->HasMatchingGameplayTag(GSGameplayTags::State_Emoting))
+{
+	if (!CachedMovementInput.IsZero() || bCachedJumpPressed)
+	{
+		FGameplayTagContainer EmotingTags;
+		EmotingTags.AddTag(GSGameplayTags::State_Emoting);
+		// Locomotion input detected: cancel active Emote abilities
+		AbilitySystemComponent->CancelAbilities(&EmotingTags);
+	}
+}
+```
+
+### 2.3 Kinematic Trajectory Simulation & Stacking Equations
+
+When manipulating or carrying objects, vertical offset distances must be calculated dynamically based on physical collision bounds.
+
+#### Vertical Item Stacking Height Equation
 
 $$Offset_Z = BaseOffset + InitialOffset + \sum_{i=1}^{StackCount} Height_i + (StackCount \times SpacingOffset)$$
+
+#### Stacking Height Implementation (`GSAbility_Grab`)
 
 ```cpp
 float CumulativeHeight = 0.0f;
 int32 StackCount = 0;
 TArray<AActor*> CurrAttached;
 AvatarActor->GetAttachedActors(CurrAttached);
+
 for (AActor* AttachedActor : CurrAttached)
 {
-	if (AttachedActor && AttachedActor != BestTarget)
+	if (AttachedActor && AttachedActor != TargetItem)
 	{
 		UGSGrabbableComponent* TempGrabComp = AttachedActor->FindComponentByClass<UGSGrabbableComponent>();
 		if (TempGrabComp && TempGrabComp->IsGrabbed())
@@ -378,76 +293,74 @@ for (AActor* AttachedActor : CurrAttached)
 }
 ```
 
-### Kinematic Launching vs. Chaos Physics
-Unreal Engine's **Chaos** physics engine runs asynchronously via sub-stepping. This prevents Mover's Network Prediction system from executing deterministic local client rollbacks during network desyncs if throwing motion is delegated purely to dynamic Chaos physics.
+---
 
-Therefore, we implement an explicit kinematic trajectory simulation (`LaunchKinematic`) in the launch ability (`UGSAbility_Launch`). This computes step-by-step parabolic motion and interpolates position directly in `UGSGrabbableComponent::TickComponent`, avoiding physics jitter in multiplayer:
+## 3. Verse & Unreal Engine 6.0 Paradigm Shift
 
-```cpp
-float ScaledSpeed = FMath::Lerp(GrabComp->ThrowSpeed * 0.4f, GrabComp->ThrowSpeed, ClampedDistance / MaxThrowDistance);
-float EstimatedPathLength = HorizontalDistance + (1.5f * LaunchZ);
-float ThrowDuration = EstimatedPathLength / ScaledSpeed;
-GrabComp->LaunchKinematic(LaunchStartLoc, DispersedTarget, LaunchZ, ThrowDuration);
+Unreal Engine 6.0 introduces **Verse** as a core native programming language. The architectural choices in this C++ framework were designed specifically to streamline future migration to Verse paradigms.
+
+### 3.1 Reactive Input Streams vs. Polling Cycles
+
+In C++, Mover polls hardware input states every tick to populate `FMoverInputCmdContext`. In Verse, polling loops are replaced by asynchronous event streams (`event`).
+
+```verse
+# Conceptual Verse Architecture for Mover Input (UE 6.0)
+LocomotionStream := channel(vector3){}
+
+OnInputReceived(MoveIntent : vector3) : void =
+    spawn:
+        LocomotionStream.Send(MoveIntent)
+
+ListenToLocomotion()<suspends> : void =
+    loop:
+        Intent := LocomotionStream.Receive()
+        MoverComponent.ApplyDirectionalIntent(Intent)
+```
+
+### 3.2 Software Transactional Memory (STM) Reconciliation
+
+Network prediction rollbacks in C++ require explicit comparison functions (`ShouldReconcile`). In Verse, prediction leverage **Software Transactional Memory (STM)**.
+
+Transactions execute speculatively. If network desynchronization occurs, the runtime aborts the transaction block and reverts memory state atomically without custom C++ rewind routines.
+
+### 3.3 Concurrent Async Coroutines for Physics
+
+Complex state machines governing abilities, throwing arcs, or patience timers rely on `FTimerHandle` in C++. In Verse, concurrent control flow primitives (`race`, `sync`, `branch`) eliminate timer handle boilerplate entirely.
+
+```verse
+# Conceptual Verse Race Condition for NPC Patience & Delivery
+RaceNPCPatience(PatienceSeconds : float)<suspends> : void =
+    race:
+        block:
+            ItemDelivered := AwaitFoodDelivery()
+            ProcessPayment(ItemDelivered)
+        block:
+            Sleep(PatienceSeconds)
+            DepartEnraged()
 ```
 
 ---
 
-## 4. NPC Configuration and Lifecycle
+## 4. Extending the Framework
 
-Restaurant NPC customers operate via local state machine `ENPCState` inside `UGSNPCComponent`.
+### 4.1 Creating Custom Movement Modes in C++
 
-### Order Lifecycle and Delivery Validation
-1. **Recipe Selection (`ChooseRandomOrder`):** Upon seating, StateTree instructs recipe selection. NPC gets menu Data Asset (`LevelMenu`), picks a item, and triggers order event (`OnOrderChosen`).
-2. **Delivery Validation (`CheckIfItemMatchesOrder`):** When player delivers an item, component checks Gameplay Tags on item ASC:
-   * Must match target food tag (e.g., `Food.Burger`).
-   * If `bRequireCookedState` is true, requires tag `State.Cooked` and excludes `State.Burned`.
+1. Create a C++ class inheriting from `UBaseMovementMode`.
+2. Override `OnGenerateMove` and `OnSimulationTick`.
+3. Register the mode class in `UCharacterMoverComponent` settings inside your Pawn constructor.
 
 ```cpp
-bool UGSNPCComponent::CheckIfItemMatchesOrder(AGSItem* Item) const
+UCLASS(BlueprintType)
+class PROJECTF_API UGSBaseCustomMovementMode : public UBaseMovementMode
 {
-	if (!Item || !bHasActiveOrder) return false;
-
-	UAbilitySystemComponent* ItemASC = Item->GetAbilitySystemComponent();
-	if (ItemASC)
-	{
-		bool bMatchesFood = ItemASC->HasMatchingGameplayTag(ActiveOrder.FoodTag);
-		
-		if (bRequireCookedState)
-		{
-			bool bIsCooked = ItemASC->HasMatchingGameplayTag(GSGameplayTags::State_Cooked);
-			bool bIsBurned = ItemASC->HasMatchingGameplayTag(GSGameplayTags::State_Burned);
-
-			return bMatchesFood && bIsCooked && !bIsBurned;
-		}
-		return bMatchesFood;
-	}
-	return Item->ItemTags.HasTagExact(ActiveOrder.FoodTag);
-}
+	GENERATED_BODY()
+public:
+	virtual void OnSimulationTick(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd, FMoverSyncState& OutputSyncState) override;
+};
 ```
 
-3. **Payment and Tip Processing (`DeliverItem` & `HandleEatingFinished`):**
-   * Upon successful match, stores base price in `PendingMoneyValue`, destroys item, and starts eating timer (`EatingTimerHandle`).
-   * When eating timer finishes, NPC spawns physical `AGSMoneyItem` actor at table with assigned monetary value before departing to exit.
+### 4.2 Creating Custom Attributes & Abilities
 
-```cpp
-void UGSNPCComponent::HandleEatingFinished()
-{
-	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
-
-	if (MoneyItemClass && PendingMoneyValue > 0.0f)
-	{
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-		FVector SpawnLoc = GetOwner()->GetActorLocation() + FVector(0.0f, 0.0f, 20.0f);
-		FRotator SpawnRot = GetOwner()->GetActorRotation();
-
-		if (AGSMoneyItem* SpawnedMoney = GetWorld()->SpawnActor<AGSMoneyItem>(MoneyItemClass, SpawnLoc, SpawnRot, SpawnParams))
-		{
-			SpawnedMoney->MoneyValue = PendingMoneyValue;
-		}
-	}
-	PendingMoneyValue = 0.0f;
-	SetNPCState(ENPCState::Leaving);
-}
-```
+1. Inherit from `UAttributeSet` and define attributes using macro helpers (`ATTRIBUTE_ACCESSORS`).
+2. Add attribute set classes to item or pawn data assets.
+3. Inherit from `UGameplayAbility` to create active abilities reacting to tags.
