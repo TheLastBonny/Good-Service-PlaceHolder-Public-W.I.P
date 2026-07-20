@@ -2,7 +2,7 @@
 
 Welcome to the Creator & Editor Workflow Guide for **ProjectF (Good Service)** in Unreal Engine 5.8.
 
-This document is designed with the fluid, welcoming, step-by-step approach seen in creator documentation platforms like Roblox Studio. Whether you are a designer, level builder, or technical artist, this guide explains the core vision of the project, why systems were built this way, and how to create game content in the Unreal Editor without touching C++ code.
+This document is designed with the fluid, welcoming, step-by-step approach seen in creator documentation platforms like Roblox Studio. Whether you are a designer, level builder, or technical artist, this guide explains the core vision of the project, **why** systems were designed this way, and **how** to create game content in the Unreal Editor without touching C++ code.
 
 ---
 
@@ -37,6 +37,12 @@ In traditional game development, creating a new item—like a raw burger, a cook
 * Every interactive physical object in the world is represented by a single, generic C++ actor class: `AGSItem`.
 * The behavior, mesh, attributes, sounds, and particle effects of an item are defined entirely by an external **Data Asset** (`UGSItemDataAsset`).
 
+> [!TIP]
+> **What does Data-Driven mean for Creators?**
+> As a designer, you can add 50 new ingredients or tools to your game without writing a single line of C++ code or compiling Blueprints. You simply create Data Assets in the Content Browser and configure them in the Inspector.
+
+---
+
 ### 1.2 Unlocking Creative Freedom
 
 Because `AGSItem` is a generic entity carrying its own **Gameplay Ability System (GAS)** component, an item is not restricted to being a food ingredient.
@@ -59,6 +65,8 @@ An `AGSItem` is a dynamic actor that combines three core elements:
 1. **Ability System Component (ASC):** Localized GAS component tracking attributes like cooking progress, temperature, or fill levels.
 2. **Gameplay Tags:** Identifiers defining the item's identity (e.g., `Food.Burger`) and logical state (e.g., `State.Cooked`).
 3. **Item Data Asset (`UGSItemDataAsset`):** Configuration blueprint defining meshes, sounds, attributes, and state transition actions.
+
+---
 
 ### 2.2 Step-by-Step: Creating a New Item Data Asset
 
@@ -105,7 +113,46 @@ Items automatically react to state changes. When a station applies heat and gran
 +-------------------------------------------------------+
 ```
 
-#### Step-by-Step Action Setup:
+#### Under the Hood: C++ Action Polymorphism
+
+Understanding **why** item actions work helps when extending the system. In C++, actions inherit from abstract base `UGSItemStateAction`:
+
+```cpp
+// Abstract base class for polymorphic item state actions
+UCLASS(Abstract, BlueprintType, EditInlineNew, DefaultToInstanced)
+class PROJECTF_API UGSItemStateAction : public UObject
+{
+	GENERATED_BODY()
+public:
+	virtual void Execute(AActor* Owner) {}
+};
+
+// Action to override item static mesh
+UCLASS(BlueprintType, EditInlineNew, meta=(DisplayName="Mesh Override"))
+class PROJECTF_API UGSItemStateAction_MeshOverride : public UGSItemStateAction
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Visual")
+	TObjectPtr<UStaticMesh> MeshOverride = nullptr;
+
+	virtual void Execute(AActor* Owner) override
+	{
+		if (!Owner || !MeshOverride) return;
+		if (UStaticMeshComponent* MeshComp = Cast<UStaticMeshComponent>(Owner->GetComponentByClass(UStaticMeshComponent::StaticClass())))
+		{
+			// Swap static mesh component instantly
+			MeshComp->SetStaticMesh(MeshOverride);
+		}
+	}
+};
+```
+
+> [!NOTE]
+> **Why `EditInlineNew` and `DefaultToInstanced`?**
+> In C++, marking action classes with `EditInlineNew` allows designers to instantiate action objects directly inside array properties in the Details Panel, without creating separate blueprint files for every action.
+
+#### Step-by-Step Action Setup in Editor:
 1. Inside your `DA_Steak` Data Asset, locate **Item States Map**.
 2. Add a new key for tag `State.Cooked`.
 3. Under **Actions**, click **+** and select **GS Item State Action Mesh Override**.
@@ -121,7 +168,7 @@ To place your item in a level during design:
 1. Drag the base `BP_GSItem` actor into the level viewport.
 2. In the Details Panel, locate **Item Configuration** > **Item Data**.
 3. Assign your newly created `DA_Steak` asset to the field.
-4. The actor will automatically populate its mesh and tags upon level launch.
+4. The actor will automatically populate its mesh, attributes, and tags upon level launch.
 
 ---
 
@@ -132,6 +179,94 @@ To place your item in a level during design:
 `AGSUtilityStation` actors are world processing stations (stoves, fryers, sinks, cutting boards). 
 
 When an item enters the station's collision volume (`StationVolume`), the station inspects the item's tags. If valid, it attaches the item to a 3D socket and applies continuous **Gameplay Effects (GE)** to alter the item's internal attributes.
+
+```cpp
+void AGSUtilityStation::UpdateEffectsForItem(AActor* Item)
+{
+	if (!HasAuthority() || !IsValid(Item)) { return; }
+
+	UAbilitySystemComponent* TargetASC = nullptr;
+	if (IAbilitySystemInterface* ASCInterface = Cast<IAbilitySystemInterface>(Item))
+	{
+		TargetASC = ASCInterface->GetAbilitySystemComponent();
+	}
+	if (!TargetASC) { return; }
+
+	// 1. Clear previous station Gameplay Effects
+	TArray<FActiveGameplayEffectHandle>* ActiveHandles = AppliedEffectsMap.Find(Item);
+	if (ActiveHandles)
+	{
+		for (const FActiveGameplayEffectHandle& Handle : *ActiveHandles)
+		{
+			if (Handle.IsValid())
+			{
+				TargetASC->RemoveActiveGameplayEffect(Handle);
+			}
+		}
+		ActiveHandles->Empty();
+	}
+	else
+	{
+		ActiveHandles = &AppliedEffectsMap.Add(Item);
+	}
+
+	// 2. Apply state-conditional effects (e.g., if item is Cooked, apply Burning effect)
+	bool bAppliedConditional = false;
+	for (const FGSConditionalEffectEntry& Entry : ConditionalEffectsFromData)
+	{
+		if (Entry.StateTag.IsValid() && TargetASC->HasMatchingGameplayTag(Entry.StateTag))
+		{
+			for (const TSubclassOf<UGameplayEffect>& EffectClass : Entry.EffectsToApply)
+			{
+				if (EffectClass)
+				{
+					FGameplayEffectContextHandle Context = AbilitySystemComponent->MakeEffectContext();
+					Context.AddInstigator(this, this);
+					FGameplayEffectSpecHandle Spec = AbilitySystemComponent->MakeOutgoingSpec(EffectClass, 1.0f, Context);
+					if (Spec.IsValid())
+					{
+						FActiveGameplayEffectHandle Handle = AbilitySystemComponent->ApplyGameplayEffectSpecToTarget(*Spec.Data.Get(), TargetASC);
+						if (Handle.IsValid())
+						{
+							ActiveHandles->Add(Handle);
+							bAppliedConditional = true;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 3. Fallback: Apply default base station effects if no conditional tags match
+	if (!bAppliedConditional)
+	{
+		for (const TSubclassOf<UGameplayEffect>& EffectClass : EffectsToApply)
+		{
+			if (EffectClass)
+			{
+				FGameplayEffectContextHandle Context = AbilitySystemComponent->MakeEffectContext();
+				Context.AddInstigator(this, this);
+				FGameplayEffectSpecHandle Spec = AbilitySystemComponent->MakeOutgoingSpec(EffectClass, 1.0f, Context);
+				if (Spec.IsValid())
+				{
+					FActiveGameplayEffectHandle Handle = AbilitySystemComponent->ApplyGameplayEffectSpecToTarget(*Spec.Data.Get(), TargetASC);
+					if (Handle.IsValid())
+					{
+						ActiveHandles->Add(Handle);
+					}
+				}
+			}
+		}
+	}
+}
+```
+
+#### Code Breakdown: Why switch effects conditionally?
+
+* **Raw to Cooked transition:** When an un-cooked burger sits on a stove, it receives `GE_CookingHeat`. Once cooking progress reaches 100%, the item gains `State.Cooked`.
+* **Cooked to Burned transition:** `UpdateEffectsForItem` detects `State.Cooked`, cancels `GE_CookingHeat`, and seamlessly applies `GE_BurningHeat`.
+
+---
 
 ### 3.2 Step-by-Step: Setting Up a Cooking Station
 
@@ -206,6 +341,31 @@ Creators can adjust customer patience settings inside `UGSNPCComponent` in the D
 ### 4.3 Configuring Payment & Money Drops
 
 When a customer finishes eating successfully:
+
+```cpp
+void UGSNPCComponent::HandleEatingFinished()
+{
+	if (!GetOwner() || !GetOwner()->HasAuthority()) return;
+
+	if (MoneyItemClass && PendingMoneyValue > 0.0f)
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+		FVector SpawnLoc = GetOwner()->GetActorLocation() + FVector(0.0f, 0.0f, 20.0f);
+		FRotator SpawnRot = GetOwner()->GetActorRotation();
+
+		// Spawn physical currency actor onto table
+		if (AGSMoneyItem* SpawnedMoney = GetWorld()->SpawnActor<AGSMoneyItem>(MoneyItemClass, SpawnLoc, SpawnRot, SpawnParams))
+		{
+			SpawnedMoney->MoneyValue = PendingMoneyValue;
+		}
+	}
+	PendingMoneyValue = 0.0f;
+	SetNPCState(ENPCState::Leaving);
+}
+```
+
 1. The NPC component retrieves the recipe base price.
 2. It automatically spawns a physical `AGSMoneyItem` actor onto the table.
 3. The player can walk over or grab the money item to add funds to the team bank account via `GSMoneyComponent`.
