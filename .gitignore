@@ -35,6 +35,7 @@
 *.xcodeproj
 *.xcworkspace
 *.sln
+*.slnx
 *.suo
 *.opensdf
 *.sdf
@@ -46,8 +47,15 @@
 SourceArt/**/*.png
 SourceArt/**/*.tga
 
-# Binary Files
+# Binary Files (Allow essential compiled Unreal Editor modules)
 Binaries/*
+!Binaries/Win64/
+Binaries/Win64/*
+!Binaries/Win64/UnrealEditor.modules
+!Binaries/Win64/UnrealEditor-*.modules
+!Binaries/Win64/UnrealEditor-*.dll
+!Binaries/Win64/*.target
+Binaries/Win64/*.patch_*
 Plugins/**/Binaries/*
 
 # Builds
