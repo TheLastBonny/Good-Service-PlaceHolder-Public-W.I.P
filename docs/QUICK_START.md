@@ -90,19 +90,19 @@ When your steak cooks on a stove, you want its 3D model to automatically change 
 
 ---
 
-## Step 5: Physical State Integration & Visual Gameplay Cues (Slow / Freeze Effect)
+## Step 5: Physical State Integration (Slow / Speed Effect & Trigger Zone)
 
-In addition to Data-Driven items, you can create interactive physical zones (such as slow traps or freeze hazards) that dynamically alter player locomotion via **Gameplay Effects (GE)**, **Mover 2.0**, and **Gameplay Cues**.
+In addition to Data-Driven items, you can create interactive physical zones (such as slow traps, freeze hazards, or speed boosts) that dynamically alter player locomotion via **Gameplay Effects (GE)** and **Mover 2.0**.
 
-### 5.1 Create your Physical State Gameplay Effect (GE_Slowing / GE_Freeze)
+### 5.1 Create your Physical State Gameplay Effect (GE_Slowing / GE_Speed)
 
 1. In the **Content Browser**, right-click in an empty space > **Gameplay** > **Gameplay Effect Blueprint** (or **Blueprint Class** > search `GameplayEffect`).
-2. Name your asset `GE_Slowing` (or `GE_Freeze`).
+2. Name your asset `GE_Slowing` (or `GE_Speed`).
 3. Double-click `GE_Slowing` to open its Inspector panel.
 4. Under **Duration**, set **Duration Policy** to `Has Duration` and specify **Duration Magnitude** (e.g., `5.0` seconds).
 5. Under **Modifiers**, click **+** to add a modifier entry:
    - **Attribute**: Select `GSMovementAttributeSet.WalkSpeed`.
-   - **Modifier Op**: Select `Override`.
+   - **Modifier Op**: Select `Override` (or `Additive` / `Multiply`).
    - **Magnitude** > **Scalable Float**: Set to `200.0` (for a slow effect) or `0.0` (for a complete freeze / paralyze).
 6. Save your asset.
 
@@ -110,19 +110,7 @@ In addition to Data-Driven items, you can create interactive physical zones (suc
 > **How Mover 2.0 Reacts**
 > You don't need to write any tick code or manual speed setters. The player pawn (`AGSPawn`) automatically listens to changes in `WalkSpeed` and updates `MoverComponent` physical speed constraints reactively!
 
-### 5.2 Add Visual Feedback via Gameplay Cue (GC_BlueFreeze)
-
-To provide immediate visual feedback when the player is slowed/frozen, configure a looping Gameplay Cue:
-
-1. In the **Content Browser**, right-click > **Blueprint Class** > search and select `GameplayCueNotify_Looping`. Name it `GC_BlueFreeze`.
-2. Open `GC_BlueFreeze` and set its **Gameplay Cue Tag** to `GameplayCue.Status.Frozen` (or add tag `GameplayCue.Status.Frozen` in the tag picker).
-3. In the **Event Graph**:
-   - On Event **On Active**: Drag off `Target` -> search for **Get Component by Class** -> set **Component Class** to `Mesh Component` (or `Skeletal Mesh Component` / `Static Mesh Component`). Connect its `Return Value` to **Set Overlay Material** (assign a blue/ice material such as `MI_BlockOut_Ice` or any blue material).
-   - On Event **On Remove**: Drag off `Target` -> search for **Get Component by Class** -> set **Component Class** to `Mesh Component`. Connect its `Return Value` to **Set Overlay Material** with `None` (restoring the default mesh appearance).
-4. Save `GC_BlueFreeze`.
-5. Open your `GE_Slowing` (from Step 5.1). Scroll down to **Display** > **Gameplay Cues**, click **+**, and add tag `GameplayCue.Status.Frozen`.
-
-### 5.3 Create the Trigger Zone Actor
+### 5.2 Create the Trigger Zone Actor
 
 1. In the **Content Browser**, right-click > **Blueprint Class** > **Actor**. Name it `BP_PhysicalStateTrigger`.
 2. Open `BP_PhysicalStateTrigger` and add a **Box Collision** component (`BoxCollision`). Set its scale in the viewport as needed.
@@ -130,7 +118,16 @@ To provide immediate visual feedback when the player is slowed/frozen, configure
 4. Drag off the `Other Actor` pin and call **Get Ability System Component** (from `Ability System Blueprint Library` or `IAbilitySystemInterface`).
 5. Drag off the returned Ability System Component pin and call **Apply Gameplay Effect Spec To Target** (or **Apply Gameplay Effect To Self**).
 6. Set the **Gameplay Effect Class** to your `GE_Slowing` asset.
-7. Compile, save, and drag `BP_PhysicalStateTrigger` into your sandbox level. When the player pawn steps into the volume, their movement speed will drop and their character mesh will turn blue for 5 seconds before returning to normal!
+7. Compile, save, and drag `BP_PhysicalStateTrigger` into your sandbox level. When the player pawn steps into the volume, their movement speed will change instantly for 5 seconds before returning to normal!
+
+---
+
+## Next Steps
+
+Congratulations! You have created your first data-driven gameplay item and physical state zone.
+
+* Read the full **[Creator & Editor Workflow Guide](PROJECT_DOCUMENTATION.md)** to learn how to configure customer NPCs, restaurant menus, utility stations, and monetary rewards.
+* Read the **[Mover & GAS Technical Framework Guide](TECHNICAL_DOCUMENTATION.md)** if you want to dive deep into C++ architecture, physics solvers, and Verse migration patterns.
 
 ---
 
