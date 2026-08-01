@@ -117,8 +117,8 @@ To provide immediate visual feedback when the player is slowed/frozen, configure
 1. In the **Content Browser**, right-click > **Blueprint Class** > search and select `GameplayCueNotify_Looping`. Name it `GC_BlueFreeze`.
 2. Open `GC_BlueFreeze` and set its **Gameplay Cue Tag** to `GameplayCue.Status.Frozen` (or add tag `GameplayCue.Status.Frozen` in the tag picker).
 3. In the **Event Graph**:
-   - On Event **On Active**: Drag off `Target Actor` -> **Get Mesh** (or `GetComponentByClass`) -> call **Set Overlay Material** (assign a blue/ice material such as `MI_BlockOut_Ice` or any blue material).
-   - On Event **On Remove**: Drag off `Target Actor` -> **Get Mesh** -> call **Set Overlay Material** with `None` (restoring the default mesh appearance).
+   - On Event **On Active**: Drag off `Target` -> search for **Get Component by Class** -> set **Component Class** to `Mesh Component` (or `Skeletal Mesh Component` / `Static Mesh Component`). Connect its `Return Value` to **Set Overlay Material** (assign a blue/ice material such as `MI_BlockOut_Ice` or any blue material).
+   - On Event **On Remove**: Drag off `Target` -> search for **Get Component by Class** -> set **Component Class** to `Mesh Component`. Connect its `Return Value` to **Set Overlay Material** with `None` (restoring the default mesh appearance).
 4. Save `GC_BlueFreeze`.
 5. Open your `GE_Slowing` (from Step 5.1). Scroll down to **Display** > **Gameplay Cues**, click **+**, and add tag `GameplayCue.Status.Frozen`.
 
