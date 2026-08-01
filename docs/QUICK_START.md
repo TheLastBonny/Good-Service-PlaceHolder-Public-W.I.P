@@ -90,9 +90,42 @@ When your steak cooks on a stove, you want its 3D model to automatically change 
 
 ---
 
+## Step 5: Physical State Integration (Gameplay Effect & Trigger Zone)
+
+In addition to Data-Driven items, you can create interactive physical zones (such as slow traps, speed boosts, or freeze hazards) that dynamically alter player movement via **Gameplay Effects (GE)** and **Mover 2.0**.
+
+### 5.1 Create your Gameplay Effect (GE_Slowing / GE_Freeze)
+
+1. In the **Content Browser**, right-click in an empty space > **Gameplay** > **Gameplay Effect Blueprint** (or **Blueprint Class** > search `GameplayEffect`).
+2. Name your asset `GE_Slowing`.
+3. Double-click `GE_Slowing` to open the Inspector panel.
+4. Set **Duration Policy** to `Has Duration` and specify **Duration Magnitude** (e.g., `5.0` seconds).
+5. Under **Modifiers**, click **+** to add a modifier entry:
+   - **Attribute**: Select `GSMovementAttributeSet.WalkSpeed`.
+   - **Modifier Op**: Select `Override` (or `Additive` / `Multiply`).
+   - **Magnitude** > **Scalable Float**: Set to `200.0` (for slowing down) or `0.0` (for complete freeze / paralyze).
+6. Save your asset.
+
+> [!TIP]
+> **How Mover 2.0 Reacts**
+> You don't need to write any tick code or manual speed setters. The player pawn (`AGSPawn`) automatically listens to changes in `WalkSpeed` and updates `MoverComponent` physical constraints reactively!
+
+### 5.2 Create the Trigger Zone Actor
+
+1. In the **Content Browser**, right-click > **Blueprint Class** > **Actor**. Name it `BP_PhysicalStateTrigger`.
+2. Open `BP_PhysicalStateTrigger` and add a **Box Collision** component (`BoxCollision`). Set its scale in the viewport as needed.
+3. In the **Event Graph**, right-click the `BoxCollision` component > **Add Event** > **Add OnComponentBeginOverlap**.
+4. Drag off the `Other Actor` pin and call **Get Ability System Component** (from `Ability System Blueprint Library` or interface).
+5. Drag off the returned Ability System Component pin and call **Apply Gameplay Effect Spec To Target** (or **Apply Gameplay Effect To Self**).
+6. Set the **Gameplay Effect Class** to your `GE_Slowing` asset.
+7. Compile, save, and drag `BP_PhysicalStateTrigger` into your sandbox level. When the player pawn steps into the volume, their locomotion speed will adjust instantly!
+
+---
+
 ## Next Steps
 
-Congratulations! You have created your first data-driven gameplay item.
+Congratulations! You have created your first data-driven gameplay item and physical state zone.
 
 * Read the full **[Creator & Editor Workflow Guide](PROJECT_DOCUMENTATION.md)** to learn how to configure customer NPCs, restaurant menus, utility stations, and monetary rewards.
 * Read the **[Mover & GAS Technical Framework Guide](TECHNICAL_DOCUMENTATION.md)** if you want to dive deep into C++ architecture, physics solvers, and Verse migration patterns.
+
