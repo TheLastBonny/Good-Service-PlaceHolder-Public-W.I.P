@@ -1,9 +1,11 @@
-name: Sincronizar Main a Repositorio Publico
+name: Sincronizar Main y Tags a Repositorio Publico
 
 on:
   push:
     branches:
       - main
+    tags:
+      - '*'
   workflow_dispatch:
 
 jobs:
@@ -31,5 +33,5 @@ jobs:
           # Limpiar credenciales residuales del runner de Actions
           git config --global --unset-all http.https://github.com/.extraheader || true
           
-          # Sincronización directa usando el token
-          git push --force https://${PUBLIC_TOKEN}@github.com/TheLastBonny/Good-Service-PlaceHolder-Public.git main:main
+          # Sincronización de rama main y todos los tags (Releases / ZIPs)
+          git push --force https://${PUBLIC_TOKEN}@github.com/TheLastBonny/Good-Service-PlaceHolder-Public.git main:main --tags
