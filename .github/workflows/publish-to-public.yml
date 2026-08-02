@@ -12,14 +12,18 @@ jobs:
     steps:
       - name: Descargar codigo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Sincronizar a repositorio publico
-        uses: cpina/github-action-push-to-another-repository@main
         env:
-          API_TOKEN_GITHUB: ${{ secrets.PUBLIC_REPO_TOKEN }}
-        with:
-          source-directory: '.'
-          destination-github-username: 'TheLastBonny'
-          destination-repository-name: 'Good-Service-PlaceHolder-Public'
-          user-email: 'action@github.com'
-          target-branch: 'main'
+          PUBLIC_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+        run: |
+          git config user.name "GitHub Action Bot"
+          git config user.email "action@github.com"
+          
+          # Limpiar credenciales residuales del runner de Actions
+          git config --global --unset-all http.https://github.com/.extraheader || true
+          
+          # Empujar directamente la rama main al repositorio público (creándola si no existe)
+          git push --force https://${PUBLIC_TOKEN}@github.com/TheLastBonny/Good-Service-PlaceHolder-Public.git main:main
