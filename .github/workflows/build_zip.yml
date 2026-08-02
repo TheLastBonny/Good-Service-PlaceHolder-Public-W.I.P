@@ -42,7 +42,7 @@ jobs:
           path: Good-Service-PlaceHolder-Develop.zip
           retention-days: 30
 
-      - name: Create or Update GitHub Release
+      - name: Create or Update Private GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-latest
@@ -58,3 +58,22 @@ jobs:
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create or Update Public GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: ${{ secrets.PUBLIC_REPO_TOKEN != '' }}
+        with:
+          repository: "TheLastBonny/Good-Service-PlaceHolder-Public"
+          tag_name: build-latest
+          name: "Good Service PlaceHolder - Latest Build (ZIP)"
+          body: |
+            Automated ZIP build with all Git LFS binary assets (levels `.umap`, blueprints `.uasset`, models, textures) fully resolved.
+            
+            **Instructions:**
+            1. Download `Good-Service-PlaceHolder-Develop.zip` below.
+            2. Extract to a local directory.
+            3. Double click `ProjectF.uproject` to launch in Unreal Engine.
+          files: Good-Service-PlaceHolder-Develop.zip
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
