@@ -19,11 +19,17 @@ jobs:
         env:
           PUBLIC_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
         run: |
+          if [ -z "$PUBLIC_TOKEN" ]; then
+            echo "::error::[ERROR] EL SECRET 'PUBLIC_REPO_TOKEN' NO SE ENCONTRÓ O ESTÁ VACÍO."
+            echo "::error::Debes ir a Settings > Secrets and variables > Actions en este repo privado y crearlo ahí."
+            exit 1
+          fi
+
           git config user.name "GitHub Action Bot"
           git config user.email "action@github.com"
           
-          # Limpiar credenciales del runner
+          # Limpiar credenciales residuales del runner de Actions
           git config --global --unset-all http.https://github.com/.extraheader || true
           
-          # Sincronización directa
+          # Sincronización directa usando el token
           git push --force https://${PUBLIC_TOKEN}@github.com/TheLastBonny/Good-Service-PlaceHolder-Public.git main:main
