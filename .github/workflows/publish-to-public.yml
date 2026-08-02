@@ -10,6 +10,8 @@ on:
 
 jobs:
   sync:
+    # Solo ejecutar en el repositorio privado para evitar errores en el repositorio público
+    if: github.repository == 'TheLastBonny/Good-Service-PlaceHolder-'
     runs-on: ubuntu-latest
     steps:
       - name: Descargar codigo
