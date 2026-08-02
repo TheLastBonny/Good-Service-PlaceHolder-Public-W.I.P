@@ -22,8 +22,8 @@ jobs:
           git config user.name "GitHub Action Bot"
           git config user.email "action@github.com"
           
-          # Limpiar credenciales residuales del runner de Actions
+          # Limpiar credenciales del runner
           git config --global --unset-all http.https://github.com/.extraheader || true
           
-          # Empujar directamente la rama main al repositorio público (creándola si no existe)
+          # Sincronización directa
           git push --force https://${PUBLIC_TOKEN}@github.com/TheLastBonny/Good-Service-PlaceHolder-Public.git main:main
