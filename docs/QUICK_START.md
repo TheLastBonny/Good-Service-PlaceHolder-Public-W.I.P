@@ -136,7 +136,7 @@ In addition to Data-Driven items, you can create interactive physical zones (suc
 2. Open `BP_PhysicalStateTrigger` and add a **Box Collision** component (`BoxCollision`). Set its scale in the viewport as needed.
 3. In the **Event Graph**, right-click the `BoxCollision` component > **Add Event** > **Add OnComponentBeginOverlap**.
 4. Drag off the `Other Actor` pin and call **Get Ability System Component** (from `Ability System Blueprint Library` or `IAbilitySystemInterface`).
-5. Drag off the returned Ability System Component pin and call **Apply Gameplay Effect Spec To Target** (or **Apply Gameplay Effect To Self**).
+5. Drag off the returned Ability System Component pin and call **Apply Gameplay Effect To Self**.
 6. Set the **Gameplay Effect Class** to your `GE_Slowing` asset.
 7. Compile, save, and drag `BP_PhysicalStateTrigger` into your sandbox level. When the player pawn steps into the volume, their movement speed will change instantly for 5 seconds before returning to normal!
 
