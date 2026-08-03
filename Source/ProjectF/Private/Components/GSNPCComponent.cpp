@@ -41,7 +41,6 @@ void UGSNPCComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	{
 		World->GetTimerManager().ClearTimer(FoodWaitTimerHandle);
 		World->GetTimerManager().ClearTimer(EatingTimerHandle);
-		World->GetTimerManager().ClearTimer(ArrivalCheckTimerHandle);
 	}
 
 	Super::EndPlay(EndPlayReason);
@@ -241,96 +240,4 @@ bool UGSNPCComponent::DeliverItem(AGSItem* Item)
 void UGSNPCComponent::SetAssignedTargetSpot(AActor* NewSpot)
 {
 	AssignedTargetSpot = NewSpot;
-	if (GetOwner() && GetOwner()->HasAuthority())
-	{
-		MoveToCurrentSpot();
-	}
-}
-
-void UGSNPCComponent::MoveToCurrentSpot()
-{
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(ArrivalCheckTimerHandle);
-
-		if (!AssignedTargetSpot)
-		{
-			return;
-		}
-
-		APawn* PawnOwner = Cast<APawn>(GetOwner());
-		if (!PawnOwner)
-		{
-			return;
-		}
-
-		AAIController* AIC = Cast<AAIController>(PawnOwner->GetController());
-		if (!AIC)
-		{
-			World->GetTimerManager().SetTimerForNextTick(this, &UGSNPCComponent::MoveToCurrentSpot);
-			return;
-		}
-
-		AIC->MoveToActor(AssignedTargetSpot, 50.0f);
-
-		World->GetTimerManager().SetTimer(ArrivalCheckTimerHandle, this, &UGSNPCComponent::CheckArrival, 0.2f, true);
-	}
-}
-
-void UGSNPCComponent::CheckArrival()
-{
-	if (!AssignedTargetSpot || !GetOwner())
-	{
-		if (UWorld* World = GetWorld())
-		{
-			World->GetTimerManager().ClearTimer(ArrivalCheckTimerHandle);
-		}
-		return;
-	}
-
-	float Distance = FVector::Dist(GetOwner()->GetActorLocation(), AssignedTargetSpot->GetActorLocation());
-	if (Distance < 100.0f)
-	{
-		if (UWorld* World = GetWorld())
-		{
-			World->GetTimerManager().ClearTimer(ArrivalCheckTimerHandle);
-		}
-		HandleArrival();
-	}
-}
-
-void UGSNPCComponent::HandleArrival()
-{
-	if (!GetOwner() || !GetOwner()->HasAuthority())
-	{
-		return;
-	}
-
-	if (CurrentNPCState == ENPCState::Entering)
-	{
-		if (UWorld* World = GetWorld())
-		{
-			if (AGSGameState* GSGameState = Cast<AGSGameState>(World->GetGameState()))
-			{
-				if (AGSNPCManager* NPCManager = GSGameState->GetNPCManager())
-				{
-					int32 TableIdx = NPCManager->TableSpots.Find(AssignedTargetSpot);
-					if (TableIdx != INDEX_NONE)
-					{
-						SetNPCState(ENPCState::Ordering);
-						ChooseRandomOrder();
-						SetNPCState(ENPCState::WaitingForFood);
-					}
-					else
-					{
-						SetNPCState(ENPCState::WaitingInQueue);
-					}
-				}
-			}
-		}
-	}
-	else if (CurrentNPCState == ENPCState::Leaving)
-	{
-		GetOwner()->Destroy();
-	}
 }

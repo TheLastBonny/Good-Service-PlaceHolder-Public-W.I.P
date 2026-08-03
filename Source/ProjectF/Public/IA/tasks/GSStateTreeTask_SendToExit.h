@@ -11,10 +11,13 @@ struct PROJECTF_API FGSStateTreeTask_SendToExitInstanceData
 
 	UPROPERTY(EditAnywhere, Category = "Context")
 	TObjectPtr<AActor> Actor = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Output")
+	TObjectPtr<AActor> ExitSpot = nullptr;
 };
 
 
-USTRUCT(BlueprintType, meta = (DisplayName = "GS Send To Exit"))
+USTRUCT(BlueprintType, meta = (DisplayName = "GS Send To Exit", Category = "NPC"))
 struct PROJECTF_API FGSStateTreeTask_SendToExit : public FStateTreeTaskCommonBase
 {
 	GENERATED_BODY()

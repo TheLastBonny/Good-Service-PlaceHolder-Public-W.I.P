@@ -14,7 +14,7 @@ struct PROJECTF_API FGSStateTreeTask_ChooseRandomOrderInstanceData
 };
 
 
-USTRUCT(BlueprintType, meta = (DisplayName = "GS Choose Random Order"))
+USTRUCT(BlueprintType, meta = (DisplayName = "GS Choose Random Order", Category = "NPC"))
 struct PROJECTF_API FGSStateTreeTask_ChooseRandomOrder : public FStateTreeTaskCommonBase
 {
 	GENERATED_BODY()

@@ -32,6 +32,9 @@ protected:
 	void ToggleDebugLogs() { bShowDebugLogs = !bShowDebugLogs; }
 
 public:
+	bool ShouldShowDebugLogs() const { return bShowDebugLogs; }
+
+public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
 

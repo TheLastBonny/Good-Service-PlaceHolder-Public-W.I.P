@@ -13,6 +13,7 @@ UGSMoneyComponent::UGSMoneyComponent()
 	bActAsCashRegister = false;
 	LocalRegisterMultiplier = 1.0f;
 	DefaultMoneyEffectClass = nullptr;
+	bShowDebugLogs = false;
 }
 
 void UGSMoneyComponent::BeginPlay()
@@ -20,8 +21,11 @@ void UGSMoneyComponent::BeginPlay()
 	Super::BeginPlay();
 
 	FString NetRole = GetOwner() && GetOwner()->HasAuthority() ? TEXT("SERVER") : TEXT("CLIENT");
-	UE_LOG(LogTemp, Log, TEXT("[MONEY_DEBUG][%s] UGSMoneyComponent::BeginPlay initialized on owner %s. ActAsRegister: %d, LocalMultiplier: %f"),
-		*NetRole, GetOwner() ? *GetOwner()->GetName() : TEXT("NULL"), bActAsCashRegister, LocalRegisterMultiplier);
+	if (bShowDebugLogs)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[MONEY_DEBUG][%s] UGSMoneyComponent::BeginPlay initialized on owner %s. ActAsRegister: %d, LocalMultiplier: %f"),
+			*NetRole, GetOwner() ? *GetOwner()->GetName() : TEXT("NULL"), bActAsCashRegister, LocalRegisterMultiplier);
+	}
 
 	if (AGSGameState* GSGameState = GetGSGameState())
 	{
@@ -41,8 +45,11 @@ void UGSMoneyComponent::BeginPlay()
 				BoundCount++;
 			}
 		}
-		UE_LOG(LogTemp, Log, TEXT("[MONEY_DEBUG][%s] UGSMoneyComponent::BeginPlay: Bound cash register overlap events to %d primitive components of %s"),
-			*NetRole, BoundCount, *GetOwner()->GetName());
+		if (bShowDebugLogs)
+		{
+			UE_LOG(LogTemp, Log, TEXT("[MONEY_DEBUG][%s] UGSMoneyComponent::BeginPlay: Bound cash register overlap events to %d primitive components of %s"),
+				*NetRole, BoundCount, *GetOwner()->GetName());
+		}
 	}
 }
 
@@ -85,7 +92,10 @@ float UGSMoneyComponent::GetGlobalMoneyMultiplier() const
 
 void UGSMoneyComponent::AddMoney(int32 Amount)
 {
-	UE_LOG(LogTemp, Log, TEXT("[MONEY_DEBUG] UGSMoneyComponent::AddMoney: Adding $%d directly"), Amount);
+	if (bShowDebugLogs)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[MONEY_DEBUG] UGSMoneyComponent::AddMoney: Adding $%d directly"), Amount);
+	}
 	if (AGSGameState* GSGameState = GetGSGameState())
 	{
 		GSGameState->AddMoneyDirectly(static_cast<float>(Amount));
@@ -94,7 +104,10 @@ void UGSMoneyComponent::AddMoney(int32 Amount)
 
 bool UGSMoneyComponent::RemoveMoney(int32 Amount)
 {
-	UE_LOG(LogTemp, Log, TEXT("[MONEY_DEBUG] UGSMoneyComponent::RemoveMoney: Attempting to remove $%d"), Amount);
+	if (bShowDebugLogs)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[MONEY_DEBUG] UGSMoneyComponent::RemoveMoney: Attempting to remove $%d"), Amount);
+	}
 	if (AGSGameState* GSGameState = GetGSGameState())
 	{
 		UAbilitySystemComponent* ASC = GSGameState->GetAbilitySystemComponent();
@@ -105,16 +118,21 @@ bool UGSMoneyComponent::RemoveMoney(int32 Amount)
 			{
 				ASC->SetNumericAttributeBase(UGSMoneyAttributeSet::GetMoneyAttribute(), CurrentMoney - Amount);
 				
-				UE_LOG(LogTemp, Warning, TEXT("[MONEY_DEBUG][SERVER] UGSMoneyComponent::RemoveMoney: Successfully removed $%d. Previous: $%f, New: $%f"),
-					Amount, CurrentMoney, CurrentMoney - Amount);
-
+				if (bShowDebugLogs)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[MONEY_DEBUG][SERVER] UGSMoneyComponent::RemoveMoney: Successfully removed $%d. Previous: $%f, New: $%f"),
+						Amount, CurrentMoney, CurrentMoney - Amount);
+				}
 
 				GSGameState->OnMoneyChanged.Broadcast(FMath::RoundToInt(CurrentMoney - Amount));
 				return true;
 			}
 			else
 			{
-				UE_LOG(LogTemp, Warning, TEXT("[MONEY_DEBUG][SERVER] UGSMoneyComponent::RemoveMoney: FAILED. Insufficient funds! Current: $%f, Requested: %d"), CurrentMoney, Amount);
+				if (bShowDebugLogs)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[MONEY_DEBUG][SERVER] UGSMoneyComponent::RemoveMoney: FAILED. Insufficient funds! Current: $%f, Requested: %d"), CurrentMoney, Amount);
+				}
 			}
 		}
 	}
@@ -124,11 +142,14 @@ bool UGSMoneyComponent::RemoveMoney(int32 Amount)
 void UGSMoneyComponent::HandleGameStateMoneyChanged(int32 NewMoney)
 {
 	OnMoneyChanged.Broadcast(NewMoney);
-	if (GEngine)
+	if (bShowDebugLogs)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT("Money Deposited! Total Cash: $%d"), NewMoney));
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT("Money Deposited! Total Cash: $%d"), NewMoney));
+		}
+		UE_LOG(LogTemp, Log, TEXT("[MONEY_DEBUG] HandleGameStateMoneyChanged: Money updated. Total Cash: $%d"), NewMoney);
 	}
-	UE_LOG(LogTemp, Log, TEXT("[MONEY_DEBUG] HandleGameStateMoneyChanged: Money updated. Total Cash: $%d"), NewMoney);
 }
 
 void UGSMoneyComponent::OnOwnerOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
@@ -138,14 +159,16 @@ void UGSMoneyComponent::OnOwnerOverlapBegin(UPrimitiveComponent* OverlappedComp,
 		return;
 	}
 
-
 	if (!GetOwner()->HasAuthority())
 	{
 		return;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[MONEY_DEBUG][SERVER] UGSMoneyComponent::OnOwnerOverlapBegin: Register %s overlapped by %s"), 
-		*GetOwner()->GetName(), *OtherActor->GetName());
+	if (bShowDebugLogs)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[MONEY_DEBUG][SERVER] UGSMoneyComponent::OnOwnerOverlapBegin: Register %s overlapped by %s"), 
+			*GetOwner()->GetName(), *OtherActor->GetName());
+	}
 
 	float BaseVal = 0.0f;
 	TSubclassOf<UGameplayEffect> EffectClass = nullptr;
@@ -172,12 +195,14 @@ void UGSMoneyComponent::OnOwnerOverlapBegin(UPrimitiveComponent* OverlappedComp,
 
 	if (bIsMoneySource)
 	{
-
 		if (!EffectClass)
 		{
 			EffectClass = DefaultMoneyEffectClass;
-			UE_LOG(LogTemp, Log, TEXT("[MONEY_DEBUG][SERVER] UGSMoneyComponent::OnOwnerOverlapBegin: Item did not specify MoneyEffectClass, falling back to DefaultMoneyEffectClass: %s"),
-				EffectClass ? *EffectClass->GetName() : TEXT("NULL"));
+			if (bShowDebugLogs)
+			{
+				UE_LOG(LogTemp, Log, TEXT("[MONEY_DEBUG][SERVER] UGSMoneyComponent::OnOwnerOverlapBegin: Item did not specify MoneyEffectClass, falling back to DefaultMoneyEffectClass: %s"),
+					EffectClass ? *EffectClass->GetName() : TEXT("NULL"));
+			}
 		}
 
 		AGSGameState* GSGameState = GetGSGameState();
@@ -195,34 +220,43 @@ void UGSMoneyComponent::OnOwnerOverlapBegin(UPrimitiveComponent* OverlappedComp,
 				FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(EffectClass, 1.f, EffectContext);
 				if (SpecHandle.IsValid())
 				{
-
 					SpecHandle.Data.Get()->SetSetByCallerMagnitude(GSGameplayTags::Data_MoneyAmount, AdjustedVal);
 					ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-
 
 					float GlobalMult = GetGlobalMoneyMultiplier();
 					int32 FinalValue = FMath::RoundToInt(AdjustedVal * GlobalMult);
 
-					UE_LOG(LogTemp, Warning, TEXT("[MONEY_DEBUG][SERVER] UGSMoneyComponent::OnOwnerOverlapBegin: Deposited %s. Base: %f, Adjusted (Local Mult %f): %f, Global Mult: %f, Final Added: $%d"),
-						*OtherActor->GetName(), BaseVal, LocalRegisterMultiplier, AdjustedVal, GlobalMult, FinalValue);
+					if (bShowDebugLogs)
+					{
+						UE_LOG(LogTemp, Warning, TEXT("[MONEY_DEBUG][SERVER] UGSMoneyComponent::OnOwnerOverlapBegin: Deposited %s. Base: %f, Adjusted (Local Mult %f): %f, Global Mult: %f, Final Added: $%d"),
+							*OtherActor->GetName(), BaseVal, LocalRegisterMultiplier, AdjustedVal, GlobalMult, FinalValue);
+					}
 
 					OnMoneyDeposited.Broadcast(OtherActor, FinalValue);
 				}
 				else
 				{
-					UE_LOG(LogTemp, Error, TEXT("[MONEY_DEBUG][SERVER] UGSMoneyComponent::OnOwnerOverlapBegin: FAILED to create outgoing spec for EffectClass on %s"), *OtherActor->GetName());
+					if (bShowDebugLogs)
+					{
+						UE_LOG(LogTemp, Error, TEXT("[MONEY_DEBUG][SERVER] UGSMoneyComponent::OnOwnerOverlapBegin: FAILED to create outgoing spec for EffectClass on %s"), *OtherActor->GetName());
+					}
 				}
 			}
 			else
 			{
-				UE_LOG(LogTemp, Error, TEXT("[MONEY_DEBUG][SERVER] UGSMoneyComponent::OnOwnerOverlapBegin: ASC (%p) or EffectClass (%p) is NULL!"), ASC, EffectClass.Get());
+				if (bShowDebugLogs)
+				{
+					UE_LOG(LogTemp, Error, TEXT("[MONEY_DEBUG][SERVER] UGSMoneyComponent::OnOwnerOverlapBegin: ASC (%p) or EffectClass (%p) is NULL!"), ASC, EffectClass.Get());
+				}
 			}
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("[MONEY_DEBUG][SERVER] UGSMoneyComponent::OnOwnerOverlapBegin: GSGameState is NULL!"));
+			if (bShowDebugLogs)
+			{
+				UE_LOG(LogTemp, Error, TEXT("[MONEY_DEBUG][SERVER] UGSMoneyComponent::OnOwnerOverlapBegin: GSGameState is NULL!"));
+			}
 		}
-
 
 		OtherActor->Destroy();
 	}

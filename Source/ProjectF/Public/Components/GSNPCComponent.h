@@ -119,13 +119,8 @@ private:
 	void HandleEatingFinished();
 	void HandleStateChangedServer(ENPCState OldState, ENPCState NewState);
 
-	void MoveToCurrentSpot();
-	void CheckArrival();
-	void HandleArrival();
-
 	FTimerHandle FoodWaitTimerHandle;
 	FTimerHandle EatingTimerHandle;
-	FTimerHandle ArrivalCheckTimerHandle;
 
 	float PendingMoneyValue;
 };

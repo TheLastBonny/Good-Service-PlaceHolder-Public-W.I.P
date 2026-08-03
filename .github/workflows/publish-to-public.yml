@@ -1,0 +1,39 @@
+name: Sincronizar Main y Tags a Repositorio Publico
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    # Solo ejecutar en el repositorio privado para evitar errores en el repositorio público
+    if: github.repository == 'TheLastBonny/Good-Service-PlaceHolder-'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sincronizar a repositorio publico
+        env:
+          PUBLIC_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+        run: |
+          if [ -z "$PUBLIC_TOKEN" ]; then
+            echo "::error::[ERROR] EL SECRET 'PUBLIC_REPO_TOKEN' NO SE ENCONTRÓ O ESTÁ VACÍO."
+            echo "::error::Debes ir a Settings > Secrets and variables > Actions en este repo privado y crearlo ahí."
+            exit 1
+          fi
+
+          git config user.name "GitHub Action Bot"
+          git config user.email "action@github.com"
+          
+          # Limpiar credenciales residuales del runner de Actions
+          git config --global --unset-all http.https://github.com/.extraheader || true
+          
+          # Sincronización de rama main y todos los tags (Releases / ZIPs)
+          git push --force https://${PUBLIC_TOKEN}@github.com/TheLastBonny/Good-Service-PlaceHolder-Public.git main:main --tags

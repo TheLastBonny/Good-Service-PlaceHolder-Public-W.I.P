@@ -58,6 +58,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Money|Register", meta = (EditCondition = "bActAsCashRegister"))
 	TSubclassOf<class UGameplayEffect> DefaultMoneyEffectClass;
 
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Money|Debug")
+	bool bShowDebugLogs = false;
+
+	UFUNCTION(CallInEditor, Category = "Money|Debug")
+	void ToggleDebugLogs() { bShowDebugLogs = !bShowDebugLogs; }
+
 private:
 	UFUNCTION()
 	void HandleGameStateMoneyChanged(int32 NewMoney);

@@ -40,20 +40,35 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC Spawner")
 	float SpawnInterval;
 
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC Spawner")
 	int32 MaxActiveNPCs;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC Spawner|Wave")
+	int32 MaxNPCsPerWave;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "NPC Spawner|Wave")
+	int32 TotalNPCsSpawnedInWave;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC Spawner|Wave")
+	bool bAutoListenToGamePhase;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC Spawner|Debug")
 	bool bShowDebugLogs;
 
+	UFUNCTION(BlueprintCallable, Category = "NPC Spawner|Wave")
+	void ResetWaveProgress();
 
 	UFUNCTION(BlueprintCallable, Category = "NPC Spawner")
 	void StartSpawning();
 
-
 	UFUNCTION(BlueprintCallable, Category = "NPC Spawner")
 	void StopSpawning();
+
+	UFUNCTION()
+	void HandleGamePhaseTagChanged(FGameplayTag NewPhaseTag);
+
+	UFUNCTION()
+	void HandleGamePhaseChanged(EGSGamePhase NewPhase);
 
 
 	UFUNCTION(BlueprintCallable, Category = "NPC Spawner")

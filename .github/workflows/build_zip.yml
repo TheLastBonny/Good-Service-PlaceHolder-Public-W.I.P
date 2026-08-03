@@ -1,0 +1,79 @@
+name: Build and Package Zip (Git LFS)
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package-zip:
+    name: Package Project ZIP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository with LFS
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          submodules: recursive
+
+      - name: Fetch LFS Objects
+        run: git lfs pull
+
+      - name: Create ZIP Package
+        run: |
+          zip -r Good-Service-PlaceHolder-Develop.zip . \
+            -x "*.git*" \
+            -x ".vs/*" \
+            -x "Intermediate/*" \
+            -x "Saved/*" \
+            -x "DerivedDataCache/*" \
+            -x ".gemini/*"
+
+      - name: Upload Zip to GitHub Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Good-Service-PlaceHolder-Develop-ZIP
+          path: Good-Service-PlaceHolder-Develop.zip
+          retention-days: 30
+
+      - name: Create or Update Private GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-latest
+          name: "Good Service PlaceHolder - Latest Build (ZIP)"
+          body: |
+            Automated ZIP build with all Git LFS binary assets (levels `.umap`, blueprints `.uasset`, models, textures) fully resolved.
+            
+            **Instructions:**
+            1. Download `Good-Service-PlaceHolder-Develop.zip` below.
+            2. Extract to a local directory.
+            3. Double click `ProjectF.uproject` to launch in Unreal Engine.
+          files: Good-Service-PlaceHolder-Develop.zip
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create or Update Public GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: ${{ secrets.PUBLIC_REPO_TOKEN != '' }}
+        with:
+          repository: "TheLastBonny/Good-Service-PlaceHolder-Public"
+          tag_name: build-latest
+          name: "Good Service PlaceHolder - Latest Build (ZIP)"
+          body: |
+            Automated ZIP build with all Git LFS binary assets (levels `.umap`, blueprints `.uasset`, models, textures) fully resolved.
+            
+            **Instructions:**
+            1. Download `Good-Service-PlaceHolder-Develop.zip` below.
+            2. Extract to a local directory.
+            3. Double click `ProjectF.uproject` to launch in Unreal Engine.
+          files: Good-Service-PlaceHolder-Develop.zip
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
