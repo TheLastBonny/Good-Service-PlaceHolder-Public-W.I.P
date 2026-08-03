@@ -2,7 +2,7 @@
 
 Welcome to the **5-Minute Creator Quick Start Guide** for **ProjectF (Good Service)** in Unreal Engine 5.8!
 
-This guide is designed for level designers, content creators, and newcomers. In less than 5 minutes, you will learn how to create a brand new interactive item (a Cookie), set up visual cooking states, adjust physical grabbing interaction, and test it on a cooking station—**without writing a single line of C++ or Blueprint code**.
+This guide is designed for level designers, content creators, and newcomers. In less than 5 minutes, you will learn how to create a brand new interactive item (a Croissant), set up visual cooking states, adjust physical grabbing interaction, and test it on a cooking station—**without writing a single line of C++ or Blueprint code**.
 
 ---
 
@@ -27,7 +27,7 @@ Imagine every interactive object in your game—food, tools, traps, or money—s
 2. Navigate to `Content/Datas/ItemsData/`.
 3. **Right-click** in an empty space and select **Data** > **Data Asset**.
 4. In the class picker search bar, type `GSItemDataAsset`, select it, and click **Select**.
-5. Name your new asset `DA_FCookie`.
+5. Name your new asset `DA_FCroissant`.
 
 ```
 +-------------------------------------------------------+
@@ -35,22 +35,22 @@ Imagine every interactive object in your game—food, tools, traps, or money—s
 +-------------------------------------------------------+
 |  Right Click -> Data -> Data Asset                    |
 |  Pick Class: UGSItemDataAsset                         |
-|  Asset Name: DA_FCookie                               |
+|  Asset Name: DA_FCroissant                               |
 +-------------------------------------------------------+
 ```
 
 > [!TIP]
 > **Pro Tip: Reference Existing Assets**
-> If you want to inspect a working real-world example in the project at any time, open `Content/Datas/ItemsData/DA_FCookie`.
+> If you want to inspect a working real-world example in the project at any time, open `Content/Datas/ItemsData/DA_FGlazedDonut`.
 
 ---
 
 ## Step 2: Configure Item Tags & Attributes (1 Minute)
 
-Double-click your new `DA_FCookie` asset to open its Inspector panel.
+Double-click your new `DA_FCroissant` asset to open its Inspector panel.
 
 1. Under **Item Configuration** > **Default Tags**, click **+** to add exact project tags:
-   - Add identity tag: `Item.Food.Cookie` (or `Item.Food`)
+   - Add identity tag: `Item.Food.Croissant` (or `Item.Food`)
    - Add initial state tag: `State.Condition.Cook.Raw`
 2. Under **Item Configuration** > **Attribute Sets**, click **+** to add attribute sets:
    - Select `UGSCookingAttributeSet` (tracks cooking progress from 0 to 100).
@@ -58,15 +58,15 @@ Double-click your new `DA_FCookie` asset to open its Inspector panel.
 
 > [!TIP]
 > **Why Tags Matter**
-> Gameplay Tags act as smart hierarchical labels. World objects like stoves look for the `Item.Food` tag to accept items, while customer NPCs check for `Item.Food.Cookie` to validate customer orders.
+> Gameplay Tags act as smart hierarchical labels. World objects like stoves look for the `Item.Food` tag to accept items, while customer NPCs check for `Item.Food.Croissant` to validate customer orders.
 
 ---
 
 ## Step 3: Add Visual State Reactions (1 Minute)
 
-When your cookie cooks in an oven, you want its 3D model to automatically change from raw to cooked without writing tick code.
+When your Croissant cooks in an oven, you want its 3D model to automatically change from raw to cooked without writing tick code.
 
-1. In the `DA_FCookie` Inspector, locate **Item States Map**.
+1. In the `DA_FCroissant` Inspector, locate **Item States Map**.
 2. Click **+** to add a state entry and set the key tag to `State.Condition.Cook.Cooked`.
 3. Under that `State.Condition.Cook.Cooked` entry:
    - Set **Max Progress Value** to `100.0`.
@@ -77,7 +77,7 @@ When your cookie cooks in an oven, you want its 3D model to automatically change
 
 ```
 +-------------------------------------------------------+
-|  DA_FCookie -> Item States Map                        |
+|  DA_FCroissant -> Item States Map                        |
 +-------------------------------------------------------+
 |  Key Tag: State.Condition.Cook.Cooked                 |
 |  Actions:                                             |
@@ -89,13 +89,13 @@ When your cookie cooks in an oven, you want its 3D model to automatically change
 
 ## Step 4: Place & Test in the Level (1 Minute)
 
-To place and test the interactive cookie in your level:
+To place and test the interactive Croissant in your level:
 
 ### 4.1 Set up the Physical Actor in Blueprint
 1. In the Content Browser, navigate to `Content/Blueprints/Items/Foods/Cooks/`.
-2. **Right-click** > **Blueprint Class** > select parent class `AGSItem` and name it `BP_FCookie`.
-3. Open `BP_FCookie` and in the Details panel:
-   - Under **Config** > **Item Data**: Assign your `DA_FCookie` asset.
+2. **Right-click** > **Blueprint Class** > select parent class `AGSItem` and name it `BP_FCroissant`.
+3. Open `BP_FCroissant` and in the Details panel:
+   - Under **Config** > **Item Data**: Assign your `DA_FCroissant` asset.
    - Under **GAS** > **Item Tags**: Add the initial state tag `State.Condition.Cook.Raw`.
    - In the **Components** panel, click **+ Add Component** and add **`GSGrabbableComponent`** (this grants the actor physical grabbing capabilities).
 
@@ -104,9 +104,9 @@ To place and test the interactive cookie in your level:
 > If during testing the object sits too low clipping through the player's hands or floats too high, select `GSGrabbableComponent` in the Components panel and under **Details** > **Grab** > **Relative Transform**, adjust **Location Z** (e.g. `Z = 15.0`).
 
 ### 4.2 Test in the Viewport
-1. Drag your `BP_FCookie` Blueprint into your level viewport.
+1. Drag your `BP_FCroissant` Blueprint into your level viewport.
 2. Drag a `BP_Oven` actor (located in `Content/Blueprints/Appliances/`) or `BP_GSUtilityStation_Stove` next to your item.
-3. Press **Play (PIE)**! Grab the cookie, drop it onto the stove/oven, and watch it automatically cook, increase its progress, and swap its 3D mesh at 100%.
+3. Press **Play (PIE)**! Grab the Croissant, drop it onto the stove/oven, and watch it automatically cook, increase its progress, and swap its 3D mesh at 100%.
 
 ---
 
