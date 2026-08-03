@@ -51,9 +51,8 @@ Double-click your new `DA_FCroissant` asset to open its Inspector panel.
 
 1. Under **Item Configuration** > **Default Tags**, click **+** to add exact project tags:
    - Add identity tag: `Item.Food.Croissant` (or `Item.Food`)
-   - Add initial state tag: `State.Condition.Cook.Raw`
 2. Under **Item Configuration** > **Attribute Sets**, click **+** to add attribute sets:
-   - Select `UGSCookingAttributeSet` (tracks cooking progress from 0 to 100).
+   - Select `UGSCookingAttributeSet` (tracks cooking progress).
    - Select `UGSBurnAttributeSet` (tracks burning progress).
 
 > [!TIP]
@@ -67,13 +66,28 @@ Double-click your new `DA_FCroissant` asset to open its Inspector panel.
 When your Croissant cooks in an oven, you want its 3D model to automatically change from raw to cooked without writing tick code.
 
 1. In the `DA_FCroissant` Inspector, locate **Item States Map**.
-2. Click **+** to add a state entry and set the key tag to `State.Condition.Cook.Cooked`.
-3. Under that `State.Condition.Cook.Cooked` entry:
+2. Click **+** to add a state entry and set the key tag to `State.Condition.Cook.Raw`
+3. Under that `State.Condition.Cook.Raw` entry:
+4.  - Set **Max Progress Attribute** to `None`.
+5.  - Set **Max Progress Value** to `0.0`.
+6.  - Under **Actions**, click **+** and choose **Mesh Override**.
+7.  - Assign your raw static mesh (`StaticMesh`) to the **Mesh Override** field.
+8. **Now, we repeat the process for Cooked:**
+9. In the `DA_FCroissant` Inspector, locate **Item States Map**.
+10. Click **+** to add a state entry and set the key tag to `State.Condition.Cook.Cooked`
+11. Under that `State.Condition.Cook.Cooked` entry:
+   - Set **Max Progress Attribute** to `GSCookingAttributeSet.MaxCookingProgress`.
    - Set **Max Progress Value** to `100.0`.
-   - Under **Actions**, click **+** and choose **GS Item State Action Mesh Override**.
+   - Under **Actions**, click **+** and choose **Mesh Override**.
    - Assign your cooked static mesh (`StaticMesh`) to the **Mesh Override** field.
-4. (Optional) Add another state entry for `State.Condition.Cook.Burned` assigning the burned static mesh.
-5. Save your Data Asset.
+12. **Repeat the process for Burned:**
+13. Click **+** to add a state entry and set the key tag to `State.Condition.Cook.Burned`
+14. Under that `State.Condition.Cook.Burned` entry:
+   - Set **Max Progress Attribute** to `GSCookingAttributeSet.MaxBurnProgress`.
+   - Set **Max Progress Value** to `200.0`.
+   - Under **Actions**, click **+** and choose **Mesh Override**.
+   - Assign your burned static mesh (`StaticMesh`) to the **Mesh Override** field.
+15. Save your Data Asset.
 
 ```
 +-------------------------------------------------------+
@@ -92,12 +106,13 @@ When your Croissant cooks in an oven, you want its 3D model to automatically cha
 To place and test the interactive Croissant in your level:
 
 ### 4.1 Set up the Physical Actor in Blueprint
-1. In the Content Browser, navigate to `Content/Blueprints/Items/Foods/Cooks/`.
+1. In the Content Browser, navigate to `Content/Blueprints/Items/Foods`.
 2. **Right-click** > **Blueprint Class** > select parent class `AGSItem` and name it `BP_FCroissant`.
 3. Open `BP_FCroissant` and in the Details panel:
    - Under **Config** > **Item Data**: Assign your `DA_FCroissant` asset.
    - Under **GAS** > **Item Tags**: Add the initial state tag `State.Condition.Cook.Raw`.
    - In the **Components** panel, click **+ Add Component** and add **`GSGrabbableComponent`** (this grants the actor physical grabbing capabilities).
+   - Also, add a static mesh in the Inspector and assign your object's default mesh to it.
 
 > [!TIP]
 > **Adjusting Hand Position (`GSGrabbableComponent`)**
@@ -116,7 +131,7 @@ In addition to Data-Driven items, you can create interactive physical zones (suc
 
 ### 5.1 Create your Physical State Gameplay Effect (GE_Slowing / GE_Speed)
 
-1. In the **Content Browser**, right-click in an empty space > **Gameplay** > **Gameplay Effect Blueprint** (or **Blueprint Class** > search `GameplayEffect`).
+1. In the **Content Browser** Go towards `Content/GAS/GE`, right-click in an empty space > **Gameplay** > **Gameplay Effect Blueprint** (or **Blueprint Class** > search `GameplayEffect`).
 2. Name your asset `GE_Slowing` (or `GE_Speed`).
 3. Double-click `GE_Slowing` to open its Inspector panel.
 4. Under **Duration**, set **Duration Policy** to `Has Duration` and specify **Duration Magnitude** (e.g., `5.0` seconds).
@@ -132,7 +147,7 @@ In addition to Data-Driven items, you can create interactive physical zones (suc
 
 ### 5.2 Create the Trigger Zone Actor
 
-1. In the **Content Browser**, right-click > **Blueprint Class** > **Actor**. Name it `BP_PhysicalStateTrigger`.
+1. In the **Content Browser** Go towards `Content/Blueprints`, right-click > **Blueprint Class** > **Actor**. Name it `BP_PhysicalStateTrigger`.
 2. Open `BP_PhysicalStateTrigger` and add a **Box Collision** component (`BoxCollision`). Set its scale in the viewport as needed.
 3. In the **Event Graph**, right-click the `BoxCollision` component > **Add Event** > **Add OnComponentBeginOverlap**.
 4. Drag off the `Other Actor` pin and call **Get Ability System Component** (from `Ability System Blueprint Library` or `IAbilitySystemInterface`).
