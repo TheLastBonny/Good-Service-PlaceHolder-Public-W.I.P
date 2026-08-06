@@ -47,16 +47,12 @@ public:
 
 
 
-	/** Llamado cuando un ítem entra a la estación (overlap begin confirmado). */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Station|Events")
 	void OnItemAddedToStation(AActor* Item);
 
-	/** Llamado cuando un ítem es removido de la estación (por grab, por código, etc.). */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Station|Events")
 	void OnItemRemovedFromStation(AActor* Item);
 
-	/** Aplica un Gameplay Effect al ítem manualmente desde Blueprint.
-	 *  El handle queda registrado y se limpia automáticamente al salir de la estación. */
 	UFUNCTION(BlueprintCallable, Category = "Station|GAS")
 	void ApplyEffectToItem(AActor* Item, TSubclassOf<UGameplayEffect> EffectClass);
 
@@ -81,13 +77,10 @@ protected:
 	UFUNCTION(CallInEditor, Category = "Debug")
 	void ToggleDebugLogs() { bShowDebugLogs = !bShowDebugLogs; }
 
-	/** Internal C++ handling when an item is added to the station. */
 	virtual void HandleItemAddedToStation(AActor* Item);
 
-	/** Internal C++ handling when an item is removed from the station. */
 	virtual void HandleItemRemovedFromStation(AActor* Item);
 
-	/** Llamado cuando cambia cualquier tag de estado del ítem acoplado (ej: State.Cooked, State.Burned, State.Filled) */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Station|Events")
 	void OnAttachedItemStateChanged(AActor* Item, FGameplayTag StateTag, bool bAdded);
 

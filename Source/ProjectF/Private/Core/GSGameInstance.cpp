@@ -374,7 +374,6 @@ void UGSGameInstance::OnSessionUserInviteAccepted(const bool bWasSuccessful, con
 			{
 				UE_LOG(LogTemp, Warning, TEXT("OnSessionUserInviteAccepted: Joining invited session..."));
 				
-				// Clean up existing session if any
 				FNamedOnlineSession* ExistingSession = SessionInterface->GetNamedSession(NAME_GameSession);
 				if (ExistingSession != nullptr)
 				{

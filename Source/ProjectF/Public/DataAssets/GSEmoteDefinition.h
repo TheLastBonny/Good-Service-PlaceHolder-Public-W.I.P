@@ -9,9 +9,6 @@ class UTexture2D;
 class UAnimMontage;
 class USoundBase;
 
-/**
- * Data asset defining an individual emote.
- */
 UCLASS(BlueprintType)
 class PROJECTF_API UGSEmoteDefinition : public UPrimaryDataAsset
 {
@@ -49,9 +46,6 @@ public:
 	bool bShowSoundRadiusDebug = false;
 };
 
-/**
- * Data asset containing a list of emotes.
- */
 UCLASS(BlueprintType)
 class PROJECTF_API UGSEmoteLibrary : public UDataAsset
 {

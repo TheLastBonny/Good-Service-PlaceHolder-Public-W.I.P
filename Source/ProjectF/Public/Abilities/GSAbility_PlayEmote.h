@@ -4,9 +4,6 @@
 #include "Abilities/GameplayAbility.h"
 #include "GSAbility_PlayEmote.generated.h"
 
-/**
- * Gameplay Ability that plays the selected emote's animation montage and spawns spatialized 3D/2D audio.
- */
 UCLASS()
 class PROJECTF_API UGSAbility_PlayEmote : public UGameplayAbility
 {
