@@ -105,45 +105,6 @@ Modeled after community standards such as Tranek's GAS Documentation, this guide
 
 ---
 
-## Architecture Flowchart
-
-```mermaid
-flowchart TD
-    subgraph Client ["Client / Local Simulation"]
-        Input["Player Input / UI"] --> InputProd["IMoverInputProducerInterface"]
-        InputProd --> CmdCtx["FMoverInputCmdContext"]
-        CmdCtx --> LocalMover["Mover Physics Solver (Predictive)"]
-    end
-
-    subgraph Network ["Network Layer (Network Prediction Plugin)"]
-        CmdCtx -. UDP Sync .-> ServerMover["Server Mover Solver"]
-        ServerMover -. Sync State / Rollback .-> LocalMover
-    end
-
-    subgraph Server ["Authoritative Server"]
-        ServerMover --> Pawn["AGSPawn Entity"]
-        Pawn <--> GAS["Gameplay Ability System (ASC)"]
-        GAS <--> Attr["WalkSpeed / Health / Patience Attributes"]
-        Attr --> SpeedUpdate["OnWalkSpeedChanged Callback"]
-        SpeedUpdate --> ServerMover
-    end
-
-    subgraph AI ["StateTree Customer AI"]
-        ST["StateTree Execution Context"] --> Task1["Assign Table"]
-        ST --> Task2["Choose Random Order"]
-        ST --> Task3["Send To Exit"]
-        Task1 & Task2 & Task3 --> NPCComp["UGSNPCComponent"]
-    end
-
-    subgraph World ["World Interactions"]
-        GAS <--> Station["AGSUtilityStation"]
-        Station -- "Apply GE" --> Item["AGSItem (Local ASC)"]
-        Item <--> DataAsset["UGSItemDataAsset"]
-    end
-```
-
----
-
 ## Directory Structure
 
 ```
