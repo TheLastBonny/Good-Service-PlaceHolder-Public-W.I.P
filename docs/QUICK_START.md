@@ -23,11 +23,40 @@ Before jumping in, consider how game creation changes with a Data-Driven Workflo
 
 Imagine every interactive object in your game—food, tools, traps, or money—sharing a single, highly optimized physical actor. You never need to create a new Blueprint class for a new item; you simply create a **Data Asset**.
 
-1. Open the **Content Browser** in Unreal Editor.
-2. Navigate to `Content/Datas/ItemsData/`.
-3. **Right-click** in an empty space and select **Data** > **Data Asset**.
-4. In the class picker search bar, type `GSItemDataAsset`, select it, and click **Select**.
-5. Name your new asset `DA_FCroissant`.
+### 1. Open the **Content Browser** in Unreal Editor.
+
+<img width="1870" height="653" alt="Captura de pantalla 2026-08-12 094020" src="https://github.com/user-attachments/assets/f009a96f-093f-4296-b9e1-ae4521e846a4" />
+
+
+
+
+### 2. Navigate to `Content/Datas/ItemsData/`.
+   
+<img width="1882" height="693" alt="Captura de pantalla 2026-08-12 094306" src="https://github.com/user-attachments/assets/c99c6ebd-8844-4817-aef7-11d9a6b1b02e" />
+
+
+
+
+### 3. **Right-click** in an empty space and select **Data** > **Data Asset**.
+   
+<img width="1919" height="1021" alt="image" src="https://github.com/user-attachments/assets/9bae7a6b-7ac2-4a5c-8751-06dcf0e002d5" />
+
+
+
+
+### 4. In the class picker search bar, type `GSItemDataAsset`, select it, and click **Select**.
+
+<img width="770" height="505" alt="Captura de pantalla 2026-08-12 094231" src="https://github.com/user-attachments/assets/d35db05a-625b-4799-86ef-50dbd75d7b89" />
+
+
+
+
+### 5. Name your new asset `DA_FCroissant`.
+
+<img width="480" height="252" alt="Captura de pantalla 2026-08-12 094413" src="https://github.com/user-attachments/assets/4229d242-cf93-4ded-8ee5-c2a07e878580" />
+
+
+
 
 ```
 +-------------------------------------------------------+
@@ -49,11 +78,21 @@ Imagine every interactive object in your game—food, tools, traps, or money—s
 
 Double-click your new `DA_FCroissant` asset to open its Inspector panel.
 
+<img width="1150" height="305" alt="Captura de pantalla 2026-08-12 094423" src="https://github.com/user-attachments/assets/9367a806-8fe6-4864-bee6-8e7b98b54ed5" />
+
+
 1. Under **Item Configuration** > **Default Tags**, click **+** to add exact project tags:
    - Add identity tag: `Item.Food.Croissant` (or `Item.Food`)
+<img width="1165" height="771" alt="image" src="https://github.com/user-attachments/assets/a4a4bf75-2fd9-4b19-b0e0-2cd9a09dfe82" />
+<img width="1231" height="733" alt="image" src="https://github.com/user-attachments/assets/dcaeb9f0-201f-47a7-b2b9-f7607dcd0cf1" />
+
+     
 2. Under **Item Configuration** > **Attribute Sets**, click **+** to add attribute sets:
    - Select `UGSCookingAttributeSet` (tracks cooking progress).
    - Select `UGSBurnAttributeSet` (tracks burning progress).
+
+<img width="1172" height="258" alt="image" src="https://github.com/user-attachments/assets/4b0cdb28-23c1-4757-8aa6-aa282987bf11" />
+
 
 > [!TIP]
 > **Why Tags Matter**
