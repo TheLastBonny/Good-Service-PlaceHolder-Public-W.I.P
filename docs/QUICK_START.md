@@ -197,14 +197,30 @@ In addition to Data-Driven items, you can create interactive physical zones (suc
 ### 5.1 Create your Physical State Gameplay Effect (GE_Slowing / GE_Speed)
 
 1. In the **Content Browser** Go towards `Content/GAS/GE`, right-click in an empty space > **Gameplay** > **Gameplay Effect Blueprint** (or **Blueprint Class** > search `GameplayEffect`).
+
+<img width="1892" height="980" alt="image" src="https://github.com/user-attachments/assets/dc029567-f666-4342-9c7d-47fd423fe3b7" />
+
 2. Name your asset `GE_Slowing` (or `GE_Speed`).
+
+<img width="877" height="271" alt="image" src="https://github.com/user-attachments/assets/1da7a512-c9e5-4fab-8401-06ebd0c4bf08" />
+
+   
 3. Double-click `GE_Slowing` to open its Inspector panel.
+
+<img width="1910" height="910" alt="image" src="https://github.com/user-attachments/assets/be09dfb7-2a93-4c2c-b817-5f56f495e846" />
+
 4. Under **Duration**, set **Duration Policy** to `Has Duration` and specify **Duration Magnitude** (e.g., `5.0` seconds).
+
+<img width="595" height="816" alt="image" src="https://github.com/user-attachments/assets/c837dc60-a346-4846-b753-9636bd2865c7" />
+
 5. Under **Modifiers**, click **+** to add a modifier entry:
    - **Attribute**: Select `GSMovementAttributeSet.WalkSpeed`.
    - **Modifier Op**: Select `Override` (or `Additive` / `Multiply`).
    - **Magnitude** > **Scalable Float**: Set to `200.0` (for a slow effect) or `0.0` (for a complete freeze / paralyze).
 6. Save your asset.
+
+<img width="592" height="833" alt="image" src="https://github.com/user-attachments/assets/92b9c018-f011-4502-b59d-9690064651bf" />
+
 
 > [!TIP]
 > **How Mover 2.0 Reacts**
@@ -213,11 +229,24 @@ In addition to Data-Driven items, you can create interactive physical zones (suc
 ### 5.2 Create the Trigger Zone Actor
 
 1. In the **Content Browser** Go towards `Content/Blueprints`, right-click > **Blueprint Class** > **Actor**. Name it `BP_PhysicalStateTrigger`.
+
+<img width="1883" height="907" alt="image" src="https://github.com/user-attachments/assets/859514de-6f84-4886-839e-000667c9e298" />
+<img width="352" height="237" alt="image" src="https://github.com/user-attachments/assets/07f1dd49-a805-40be-8096-b0c3b1698fe1" />
+
 2. Open `BP_PhysicalStateTrigger` and add a **Box Collision** component (`BoxCollision`). Set its scale in the viewport as needed.
+
+<img width="495" height="340" alt="image" src="https://github.com/user-attachments/assets/3c5d735b-f855-40be-b7db-34955092b5e2" />
+
 3. In the **Event Graph**, right-click the `BoxCollision` component > **Add Event** > **Add OnComponentBeginOverlap**.
+
+<img width="1915" height="898" alt="image" src="https://github.com/user-attachments/assets/784b1cfb-28a1-4aaa-9315-fcfb868acf6e" />
+
 4. Drag off the `Other Actor` pin and call **Get Ability System Component** (from `Ability System Blueprint Library` or `IAbilitySystemInterface`).
 5. Drag off the returned Ability System Component pin and call **Apply Gameplay Effect To Self**.
 6. Set the **Gameplay Effect Class** to your `GE_Slowing` asset.
+
+<img width="1051" height="441" alt="image" src="https://github.com/user-attachments/assets/34ae9b7f-267b-4235-bb42-56a65411291a" />
+
 7. Compile, save, and drag `BP_PhysicalStateTrigger` into your sandbox level. When the player pawn steps into the volume, their movement speed will change instantly for 5 seconds before returning to normal!
 
 ---
