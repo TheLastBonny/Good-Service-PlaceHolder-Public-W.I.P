@@ -119,7 +119,11 @@ When your Croissant cooks in an oven, you want its 3D model to automatically cha
    - Set **Max Progress Value** to `100.0`.
    - Under **Actions**, click **+** and choose **Mesh Override**.
    - Assign your cooked static mesh (`StaticMesh`) to the **Mesh Override** field.
-12. **Repeat the process for Burned:**
+
+<img width="1517" height="667" alt="Captura de pantalla 2026-08-12 094819" src="https://github.com/user-attachments/assets/c2df1965-f6ec-487e-a803-906346852b5e" />
+
+
+12. **Repeat the process for Burned:** (Opcional)
 13. Click **+** to add a state entry and set the key tag to `State.Condition.Cook.Burned`
 14. Under that `State.Condition.Cook.Burned` entry:
    - Set **Max Progress Attribute** to `GSCookingAttributeSet.MaxBurnProgress`.
@@ -147,7 +151,12 @@ To place and test the interactive Croissant in your level:
 ### 4.1 Set up the Physical Actor in Blueprint
 1. In the Content Browser, navigate to `Content/Blueprints/Items/Foods`.
 2. **Right-click** > **Blueprint Class** > select parent class `AGSItem` and name it `BP_FCroissant`.
-3. Open `BP_FCroissant` and in the Details panel:
+
+<img width="1914" height="1020" alt="image" src="https://github.com/user-attachments/assets/96b8a3a7-76b0-4bcb-9320-a39c12503e00" />
+<img width="1918" height="946" alt="image" src="https://github.com/user-attachments/assets/31c9e1a4-4fdc-48e4-9618-159071a563e2" />
+
+
+4. Open `BP_FCroissant` and in the Details panel:
    - Under **Config** > **Item Data**: Assign your `DA_FCroissant` asset.
    - Under **GAS** > **Item Tags**: Add the initial state tag `State.Condition.Cook.Raw`.
    - In the **Components** panel, click **+ Add Component** and add **`GSGrabbableComponent`** (this grants the actor physical grabbing capabilities).
