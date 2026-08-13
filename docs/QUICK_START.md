@@ -159,8 +159,21 @@ To place and test the interactive Croissant in your level:
 4. Open `BP_FCroissant` and in the Details panel:
    - Under **Config** > **Item Data**: Assign your `DA_FCroissant` asset.
    - Under **GAS** > **Item Tags**: Add the initial state tag `State.Condition.Cook.Raw`.
+  
+     <img width="1918" height="1017" alt="image" src="https://github.com/user-attachments/assets/d901844c-8011-4d54-b42a-c050978b6ea0" />
+     <img width="637" height="243" alt="image" src="https://github.com/user-attachments/assets/104efa53-6926-4568-938a-5d8b7f18f0ba" />
+
+
    - In the **Components** panel, click **+ Add Component** and add **`GSGrabbableComponent`** (this grants the actor physical grabbing capabilities).
+  
+     <img width="1262" height="642" alt="image" src="https://github.com/user-attachments/assets/31791f2a-6342-4a09-9697-e08e9f42fa4f" />
+
    - Also, add a static mesh in the Inspector and assign your object's default mesh to it.
+  
+     <img width="526" height="608" alt="image" src="https://github.com/user-attachments/assets/dfba0e87-855a-4685-a20b-6569e31df1b8" />
+     <img width="1918" height="852" alt="image" src="https://github.com/user-attachments/assets/eae80d96-b557-40e9-9359-6f80b31fc737" />
+     <img width="1912" height="866" alt="image" src="https://github.com/user-attachments/assets/b13b52e1-d8e0-41a9-885e-81aab364bdc1" />
+
 
 > [!TIP]
 > **Adjusting Hand Position (`GSGrabbableComponent`)**
@@ -170,6 +183,10 @@ To place and test the interactive Croissant in your level:
 1. Drag your `BP_FCroissant` Blueprint into your level viewport.
 2. Drag a `BP_Oven` actor (located in `Content/Blueprints/Appliances/`) or `BP_GSUtilityStation_Stove` next to your item.
 3. Press **Play (PIE)**! Grab the Croissant, drop it onto the stove/oven, and watch it automatically cook, increase its progress, and swap its 3D mesh at 100%.
+
+<img width="1918" height="1017" alt="image" src="https://github.com/user-attachments/assets/d6c3bf3a-1be4-44f3-8a63-c0f97fc39d98" />
+<img width="1387" height="865" alt="image" src="https://github.com/user-attachments/assets/13a7875b-2eb8-4fd0-860b-37c6e76490db" />
+<img width="1382" height="822" alt="image" src="https://github.com/user-attachments/assets/1ce08186-e702-4eac-b88b-049f61138ca7" />
 
 ---
 
