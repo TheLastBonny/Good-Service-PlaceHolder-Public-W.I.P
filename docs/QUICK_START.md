@@ -249,6 +249,9 @@ In addition to Data-Driven items, you can create interactive physical zones (suc
 
 7. Compile, save, and drag `BP_PhysicalStateTrigger` into your sandbox level. When the player pawn steps into the volume, their movement speed will change instantly for 5 seconds before returning to normal!
 
+<img width="1020" height="527" alt="image" src="https://github.com/user-attachments/assets/ad135098-cb54-42e2-8bb6-48001506f33d" />
+
+
 ---
 
 ## Next Steps
