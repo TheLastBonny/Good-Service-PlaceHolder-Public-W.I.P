@@ -150,7 +150,7 @@ Modeled after community standards such as Tranek's GAS Documentation, this guide
 This project is licensed under the **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0)**.
 
 * **Non-Commercial:** You are free to view, clone, study, and test the project for non-commercial and educational purposes. Commercial distribution or unauthorized monetization is strictly prohibited.
-* **Attribution:** Any usage or derivative work must retain full attribution to the original author (`TheLastBonny`).
+* **Attribution:** Any usage or derivative work must retain full attribution to the original author.
 * **Contributions:** Community members are welcome to contribute via Pull Requests targeting the `develop` branch. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ---
