@@ -91,6 +91,19 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TObjectPtr<UInputAction> AdjustArcAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	TObjectPtr<UInputAction> PauseAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<class UGSPauseMenuWidget> PauseMenuClass;
+
+	UPROPERTY(BlueprintReadOnly, Category = "UI")
+	TObjectPtr<class UGSPauseMenuWidget> PauseMenuWidgetInstance;
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void TogglePauseMenu();
+
 private:
 	void HandleMove(const FInputActionValue& Value);
 	void HandleJumpTriggered();

@@ -36,6 +36,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC Spawner")
 	TSubclassOf<APawn> NPCPawnClass;
 
+	/** Optional pool of character data assets (containing stats, abilities, and skins) assigned randomly to spawned NPCs */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC Spawner|Data")
+	TArray<TObjectPtr<class UGSCharacterDataAsset>> NPCCharacterDataAssets;
+
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC Spawner")
 	float SpawnInterval;

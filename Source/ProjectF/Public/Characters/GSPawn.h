@@ -17,6 +17,7 @@ class UGSPatienceAttributeSet;
 class UNavMoverComponent;
 class UAudioComponent;
 class UGSEmoteDefinition;
+class UGSSkinComponent;
 
 UCLASS()
 class PROJECTF_API AGSPawn : public APawn, public IGSPlayerInterface, public IMoverInputProducerInterface, public IAbilitySystemInterface
@@ -27,6 +28,9 @@ public:
 	AGSPawn();
 
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+
+	UFUNCTION(BlueprintPure, Category = "Components")
+	UGSSkinComponent* GetSkinComponent() const { return SkinComponent; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -43,6 +47,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UNavMoverComponent> NavMoverComponent;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UGSSkinComponent> SkinComponent;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
 	TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
 
@@ -57,6 +64,10 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GAS")
 	TMap<FGameplayTag, FGameplayTag> AbilitySlotMap;
+
+	/** Optional Data Asset to initialize character attributes, abilities, effects, and tags on spawn */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Data")
+	TObjectPtr<UGSCharacterDataAsset> CharacterDataAsset;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UAudioComponent> ActiveEmoteAudioComponent;
@@ -84,6 +95,10 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "GAS")
 	FGameplayTag GetAbilityTagForSlot(FGameplayTag SlotTag) const;
+
+	/** Applies an additive character data asset to configure attributes, abilities, effects, and tags */
+	UFUNCTION(BlueprintCallable, Category = "GAS")
+	void ApplyCharacterDataAsset(UGSCharacterDataAsset* DataAsset);
 
 	UFUNCTION(NetMulticast, Unreliable)
 	void MulticastPlayEmoteSound(UGSEmoteDefinition* EmoteDef);

@@ -3,6 +3,8 @@
 #include "Core/GSGameplayTags.h"
 #include "Components/GSNPCComponent.h"
 #include "Components/GSNPCComponentAlphaTest.h"
+#include "Characters/GSPawn.h"
+#include "DataAssets/UGSCharacterDataAsset.h"
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
@@ -236,6 +238,19 @@ APawn* AGSNPCManager::SpawnNPC()
 	if (APawn* NewNPC = GetWorld()->SpawnActor<APawn>(NPCPawnClass, SpawnLoc, SpawnRot, SpawnParams))
 	{
 		ActiveNPCs.Add(NewNPC);
+
+		if (AGSPawn* GSPawn = Cast<AGSPawn>(NewNPC))
+		{
+			if (NPCCharacterDataAssets.Num() > 0)
+			{
+				int32 DataIdx = FMath::RandRange(0, NPCCharacterDataAssets.Num() - 1);
+				if (UGSCharacterDataAsset* ChosenData = NPCCharacterDataAssets[DataIdx])
+				{
+					GSPawn->ApplyCharacterDataAsset(ChosenData);
+				}
+			}
+		}
+
 		if (FreeQueueIdx != INDEX_NONE && QueueOccupants.IsValidIndex(FreeQueueIdx))
 		{
 			QueueOccupants[FreeQueueIdx] = NewNPC;

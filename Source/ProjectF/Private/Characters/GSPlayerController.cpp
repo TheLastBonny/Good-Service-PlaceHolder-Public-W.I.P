@@ -15,6 +15,7 @@
 #include "Engine/OverlapResult.h"
 #include "Components/GSGrabbableComponent.h"
 #include "Core/GSCameraTriggerVolume.h"
+#include "UI/GSPauseMenuWidget.h"
 
 AGSPlayerController::AGSPlayerController()
 {
@@ -159,6 +160,11 @@ void AGSPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(AdjustArcAction, ETriggerEvent::Triggered, this, &AGSPlayerController::HandleAdjustArc);
 		}
 
+		if (PauseAction)
+		{
+			EnhancedInputComponent->BindAction(PauseAction, ETriggerEvent::Started, this, &AGSPlayerController::TogglePauseMenu);
+		}
+
 		if (SpecialModifierAction)
 		{
 			EnhancedInputComponent->BindAction(SpecialModifierAction, ETriggerEvent::Started, this, &AGSPlayerController::HandleSpecialPressed);
@@ -168,6 +174,41 @@ void AGSPlayerController::SetupInputComponent()
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("InputComponent is not an EnhancedInputComponent!"));
+	}
+}
+
+void AGSPlayerController::TogglePauseMenu()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	if (PauseMenuWidgetInstance && PauseMenuWidgetInstance->IsInViewport())
+	{
+		PauseMenuWidgetInstance->RemoveFromParent();
+
+		FInputModeGameOnly InputMode;
+		SetInputMode(InputMode);
+		bShowMouseCursor = false;
+	}
+	else
+	{
+		if (!PauseMenuWidgetInstance && PauseMenuClass)
+		{
+			PauseMenuWidgetInstance = CreateWidget<UGSPauseMenuWidget>(this, PauseMenuClass);
+		}
+
+		if (PauseMenuWidgetInstance)
+		{
+			PauseMenuWidgetInstance->AddToViewport(100);
+
+			FInputModeGameAndUI InputMode;
+			InputMode.SetWidgetToFocus(PauseMenuWidgetInstance->TakeWidget());
+			InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+			SetInputMode(InputMode);
+			bShowMouseCursor = true;
+		}
 	}
 }
 

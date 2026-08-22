@@ -72,6 +72,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC Alpha | Order")
 	bool bRequireCookedState;
 
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "NPC Alpha | Timers")
+	float TotalFoodWaitTime;
+
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "NPC Alpha | Timers")
+	float FoodWaitStartTime;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC Alpha | Timers", meta = (ClampMin = "0.0"))
 	float FoodWaitTime;
 
@@ -87,6 +95,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "NPC Alpha | UI")
 	TObjectPtr<UUserWidget> ActiveOrderWidgetInstance;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "NPC Alpha | UI")
+	TObjectPtr<class UGSBillboardWidgetComponent> OrderWidgetComponent;
+
 	// ==========================================
 	// EVALUATION & INSPECTOR DEBUG
 	// ==========================================
@@ -96,7 +107,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "NPC Alpha | Evaluation")
 	FString CurrentStateDescription;
 
-	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "NPC Alpha | Evaluation")
+	UPROPERTY(ReplicatedUsing = OnRep_ActiveOrder, VisibleAnywhere, BlueprintReadOnly, Category = "NPC Alpha | Evaluation")
 	FGSFoodRecipeDetails ActiveOrder;
 
 	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "NPC Alpha | Evaluation")
@@ -107,6 +118,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "NPC Alpha | Evaluation")
 	FVector TargetLocation;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "NPC Alpha | Evaluation")
+	FVector CurrentNavTargetLocation;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC Alpha | Debug")
 	bool bShowDebugLogs;
@@ -141,6 +155,9 @@ public:
 	void OnRep_CurrentNPCState();
 
 	UFUNCTION()
+	void OnRep_ActiveOrder();
+
+	UFUNCTION()
 	void OnCapsuleOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
 	UFUNCTION()
@@ -157,6 +174,12 @@ private:
 	FTimerHandle FoodWaitTimerHandle;
 	FTimerHandle EatingTimerHandle;
 	FTimerHandle MovementPollTimerHandle;
+	FTimerHandle InitialMoveRetryTimerHandle;
+
+	float LastMoveRetryTime = 0.0f;
+	float LastLogTime = 0.0f;
+	bool bHasIssuedMoveRequest = false;
 
 	void PollMovementToLocation();
+	void RetryInitialMove();
 };

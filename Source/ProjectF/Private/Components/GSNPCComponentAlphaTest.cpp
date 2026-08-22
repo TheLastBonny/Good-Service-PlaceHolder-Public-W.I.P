@@ -2,23 +2,28 @@
 #include "Net/UnrealNetwork.h"
 #include "AIController.h"
 #include "Navigation/PathFollowingComponent.h"
+#include "NavigationSystem.h"
 #include "SmartObjectSubsystem.h"
 #include "SmartObjectComponent.h"
 #include "SmartObjectRequestTypes.h"
 #include "Items/GSItem.h"
 #include "Items/GSMoneyItem.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/GSBillboardWidgetComponent.h"
+#include "UI/GSNPCOrderWidget.h"
+#include "UI/GSFloatingWidgetBase.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
 #include "AbilitySystemComponent.h"
 #include "Attributes/GSCookingAttributeSet.h"
 #include "GameFramework/Pawn.h"
+#include "GameFramework/GameStateBase.h"
 #include "Characters/GSPlayerInterface.h"
 
 UGSNPCComponentAlphaTest::UGSNPCComponentAlphaTest()
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
 	SetIsReplicatedByDefault(true);
 
 	CurrentNPCState = ENPCState::None;
@@ -28,6 +33,8 @@ UGSNPCComponentAlphaTest::UGSNPCComponentAlphaTest()
 	SearchRadius = 5000.0f;
 	bAutoRunStateFlow = true;
 	bRequireCookedState = true;
+	TotalFoodWaitTime = 0.0f;
+	FoodWaitStartTime = 0.0f;
 	FoodWaitTime = 45.0f;
 	EatingTime = 8.0f;
 	bShowDebugLogs = false;
@@ -43,6 +50,8 @@ void UGSNPCComponentAlphaTest::GetLifetimeReplicatedProps(TArray<FLifetimeProper
 	DOREPLIFETIME(UGSNPCComponentAlphaTest, CurrentNPCState);
 	DOREPLIFETIME(UGSNPCComponentAlphaTest, ActiveOrder);
 	DOREPLIFETIME(UGSNPCComponentAlphaTest, bHasActiveOrder);
+	DOREPLIFETIME(UGSNPCComponentAlphaTest, TotalFoodWaitTime);
+	DOREPLIFETIME(UGSNPCComponentAlphaTest, FoodWaitStartTime);
 }
 
 void UGSNPCComponentAlphaTest::BeginPlay()
@@ -98,8 +107,23 @@ void UGSNPCComponentAlphaTest::SetNPCState(ENPCState NewState)
 
 	if (GetWorld())
 	{
-		GetWorld()->GetTimerManager().ClearTimer(FoodWaitTimerHandle);
-		GetWorld()->GetTimerManager().ClearTimer(EatingTimerHandle);
+		if (NewState != ENPCState::WaitingForFood)
+		{
+			GetWorld()->GetTimerManager().ClearTimer(FoodWaitTimerHandle);
+		}
+		if (NewState != ENPCState::Eating)
+		{
+			GetWorld()->GetTimerManager().ClearTimer(EatingTimerHandle);
+		}
+	}
+
+	if (NewState == ENPCState::WaitingForFood)
+	{
+		StartWaitingForFoodTimer();
+	}
+	else if (NewState == ENPCState::Eating)
+	{
+		StartEatingTimer();
 	}
 
 	static const UEnum* EnumPtr = StaticEnum<ENPCState>();
@@ -127,6 +151,30 @@ void UGSNPCComponentAlphaTest::OnRep_CurrentNPCState()
 	static const UEnum* EnumPtr = StaticEnum<ENPCState>();
 	CurrentStateDescription = EnumPtr ? EnumPtr->GetNameStringByValue(static_cast<int64>(CurrentNPCState)) : TEXT("Unknown");
 	OnNPCStateChanged.Broadcast(CurrentNPCState);
+
+	if (CurrentNPCState == ENPCState::Ordering || CurrentNPCState == ENPCState::WaitingForFood)
+	{
+		if (bHasActiveOrder && ActiveOrder.FoodTag.IsValid())
+		{
+			CreateOrUpdateOrderWidget();
+		}
+	}
+	else if (CurrentNPCState == ENPCState::Eating || CurrentNPCState == ENPCState::Leaving)
+	{
+		RemoveOrderWidget();
+	}
+}
+
+void UGSNPCComponentAlphaTest::OnRep_ActiveOrder()
+{
+	if (bHasActiveOrder && ActiveOrder.FoodTag.IsValid())
+	{
+		CreateOrUpdateOrderWidget();
+	}
+	else
+	{
+		RemoveOrderWidget();
+	}
 }
 
 bool UGSNPCComponentAlphaTest::ClaimAndMoveToSmartObject(FGameplayTag TargetTag)
@@ -171,11 +219,21 @@ bool UGSNPCComponentAlphaTest::ClaimAndMoveToSmartObject(FGameplayTag TargetTag)
 			FTransform SlotTransform;
 			if (SOSubsystem->GetSlotTransform(ClaimHandle, SlotTransform))
 			{
-				CurrentClaimHandle = ClaimHandle;
 				TargetLocation = SlotTransform.GetLocation();
 
 				USmartObjectComponent* SOComp = SOSubsystem->GetSmartObjectComponent(ClaimHandle);
 				AssignedTargetSpot = SOComp ? SOComp->GetOwner() : nullptr;
+
+				// Release exit claim handle immediately so other NPCs leaving can also use the exit spot
+				if (TargetTag.IsValid() && TargetTag == ExitSmartObjectTag)
+				{
+					SOSubsystem->Release(ClaimHandle);
+					CurrentClaimHandle.Invalidate();
+				}
+				else
+				{
+					CurrentClaimHandle = ClaimHandle;
+				}
 
 				AActor* TargetActor = AssignedTargetSpot.Get();
 				FString SpotName = TargetActor ? TargetActor->GetName() : TEXT("Unknown");
@@ -200,37 +258,76 @@ bool UGSNPCComponentAlphaTest::ClaimAndMoveToSmartObject(FGameplayTag TargetTag)
 					AAIController* AICon = Cast<AAIController>(OwnerPawn->GetController());
 					if (AICon)
 					{
-						float StartDist = FVector::Dist(OwnerActor->GetActorLocation(), TargetLocation);
+						FVector NavTargetLocation = TargetLocation;
+						if (UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World))
+						{
+							FNavLocation ProjectedNavLoc;
+							if (NavSys->ProjectPointToNavigation(TargetLocation, ProjectedNavLoc, FVector(150.0f, 150.0f, 100.0f)))
+							{
+								NavTargetLocation = ProjectedNavLoc.Location;
+							}
+						}
+
+						CurrentNavTargetLocation = NavTargetLocation;
+						float StartDist = FVector::Dist(OwnerActor->GetActorLocation(), NavTargetLocation);
 						EPathFollowingRequestResult::Type MoveResult = EPathFollowingRequestResult::Failed;
 
-						if (AssignedTargetSpot.IsValid())
+						FAIMoveRequest MoveReq(NavTargetLocation);
+						MoveReq.SetAcceptanceRadius(120.0f);
+						MoveReq.SetUsePathfinding(true);
+						MoveReq.SetProjectGoalLocation(true);
+						MoveReq.SetAllowPartialPath(true);
+						FPathFollowingRequestResult MoveReqResult = AICon->MoveTo(MoveReq);
+						MoveResult = MoveReqResult.Code;
+						bHasIssuedMoveRequest = true;
+
+						FString ControllerClassStr = AICon->GetClass()->GetName();
+						FString PathCompClassStr = AICon->GetPathFollowingComponent() ? AICon->GetPathFollowingComponent()->GetClass()->GetName() : TEXT("NONE");
+
+						int32 PathPointsCount = 0;
+						bool bIsPartialPath = false;
+						if (AICon->GetPathFollowingComponent() && AICon->GetPathFollowingComponent()->GetPath().IsValid())
 						{
-							FAIMoveRequest MoveReq(AssignedTargetSpot.Get());
-							MoveReq.SetAcceptanceRadius(80.0f);
-							MoveReq.SetUsePathfinding(true);
-							MoveReq.SetProjectGoalLocation(true);
-							FPathFollowingRequestResult MoveReqResult = AICon->MoveTo(MoveReq);
-							MoveResult = MoveReqResult.Code;
-						}
-						else
-						{
-							FAIMoveRequest MoveReq(TargetLocation);
-							MoveReq.SetAcceptanceRadius(80.0f);
-							MoveReq.SetUsePathfinding(true);
-							MoveReq.SetProjectGoalLocation(true);
-							FPathFollowingRequestResult MoveReqResult = AICon->MoveTo(MoveReq);
-							MoveResult = MoveReqResult.Code;
+							FNavPathSharedPtr Path = AICon->GetPathFollowingComponent()->GetPath();
+							PathPointsCount = Path->GetPathPoints().Num();
+							bIsPartialPath = Path->IsPartial();
+
+							if (bShowDebugLogs)
+							{
+								const TArray<FNavPathPoint>& PathPoints = Path->GetPathPoints();
+								for (int32 idx = 0; idx < PathPoints.Num() - 1; idx++)
+								{
+									DrawDebugLine(World, PathPoints[idx].Location + FVector(0, 0, 30), PathPoints[idx + 1].Location + FVector(0, 0, 30), FColor::Cyan, false, 5.0f, 0, 3.0f);
+									DrawDebugPoint(World, PathPoints[idx].Location + FVector(0, 0, 30), 10.0f, FColor::Yellow, false, 5.0f);
+								}
+								if (PathPoints.Num() > 0)
+								{
+									DrawDebugPoint(World, PathPoints.Last().Location + FVector(0, 0, 30), 14.0f, FColor::Green, false, 5.0f);
+								}
+							}
 						}
 
 						if (bShowDebugLogs)
 						{
-							UE_LOG(LogTemp, Warning, TEXT("[ALPHA_NPC] AIController MoveTo Result: %d (0=AlreadyAtGoal, 1=RequestSuccessful, 2=Failed) | StartDist: %.1fu | %s -> Target: %s"),
-								static_cast<int32>(MoveResult), StartDist, *OwnerActor->GetName(), *TargetLocation.ToString());
+							UE_LOG(LogTemp, Warning, TEXT("[NPC_DEBUG_CLAIM] %s Claimed SmartObject!"), *OwnerActor->GetName());
+							UE_LOG(LogTemp, Warning, TEXT("  -> Controller Class: %s"), *ControllerClassStr);
+							UE_LOG(LogTemp, Warning, TEXT("  -> PathFollowing Class: %s"), *PathCompClassStr);
+							UE_LOG(LogTemp, Warning, TEXT("  -> RawTarget: %s | NavProjectedTarget: %s | StartDist: %.1fu"), *TargetLocation.ToString(), *NavTargetLocation.ToString(), StartDist);
+							UE_LOG(LogTemp, Warning, TEXT("  -> AICon MoveTo Result: %d (0=AlreadyAtGoal, 1=Successful, 2=Failed) | PathPoints: %d | IsPartial: %d"),
+								static_cast<int32>(MoveResult), PathPointsCount, bIsPartialPath ? 1 : 0);
+						}
+
+						if (MoveResult == EPathFollowingRequestResult::Failed && World)
+						{
+							World->GetTimerManager().SetTimer(InitialMoveRetryTimerHandle, this, &UGSNPCComponentAlphaTest::RetryInitialMove, 0.1f, false);
 						}
 					}
-					else if (bShowDebugLogs)
+					else
 					{
-						UE_LOG(LogTemp, Error, TEXT("[ALPHA_NPC] FAILED to get AAIController for Pawn %s! Check Auto Possess AI on Pawn Blueprint."), *OwnerActor->GetName());
+						if (bShowDebugLogs)
+						{
+							UE_LOG(LogTemp, Error, TEXT("[NPC_DEBUG_CLAIM] FAILED to get AAIController for Pawn %s! Controller is NULL or not AAIController."), *OwnerActor->GetName());
+						}
 					}
 				}
 
@@ -245,6 +342,18 @@ bool UGSNPCComponentAlphaTest::ClaimAndMoveToSmartObject(FGameplayTag TargetTag)
 		UE_LOG(LogTemp, Error, TEXT("[ALPHA_NPC] FAILED to claim SmartObject for tag: %s on %s"), *TagStr, *OwnerActor->GetName());
 	}
 	return false;
+}
+
+void UGSNPCComponentAlphaTest::RetryInitialMove()
+{
+	if (CurrentNPCState == ENPCState::Entering)
+	{
+		ClaimAndMoveToSmartObject(ChairSmartObjectTag);
+	}
+	else if (CurrentNPCState == ENPCState::Leaving)
+	{
+		ClaimAndMoveToSmartObject(ExitSmartObjectTag);
+	}
 }
 
 void UGSNPCComponentAlphaTest::ReleaseCurrentSmartObject()
@@ -273,9 +382,13 @@ void UGSNPCComponentAlphaTest::PollMovementToLocation()
 	AAIController* AICon = OwnerPawn ? Cast<AAIController>(OwnerPawn->GetController()) : nullptr;
 
 	FVector CurrentLoc = OwnerActor->GetActorLocation();
-	FVector Dir = (TargetLocation - CurrentLoc);
-	Dir.Z = 0.0f;
-	float Dist = Dir.Size();
+	FVector DirToRaw = (TargetLocation - CurrentLoc);
+	DirToRaw.Z = 0.0f;
+	float DistToRaw = DirToRaw.Size();
+
+	FVector DirToNav = (CurrentNavTargetLocation - CurrentLoc);
+	DirToNav.Z = 0.0f;
+	float DistToNav = DirToNav.Size();
 
 	bool bIsTouchingTarget = false;
 	if (AssignedTargetSpot.IsValid())
@@ -287,17 +400,36 @@ void UGSNPCComponentAlphaTest::PollMovementToLocation()
 		}
 	}
 
-	bool bArrived = bIsTouchingTarget || (Dist <= 160.0f);
+	bool bPathReachedGoal = false;
+	bool bPathIsIdleAndClose = false;
+
+	if (AICon && AICon->GetPathFollowingComponent())
+	{
+		UPathFollowingComponent* PathComp = AICon->GetPathFollowingComponent();
+		bPathReachedGoal = PathComp->DidMoveReachGoal();
+		EPathFollowingStatus::Type Status = PathComp->GetStatus();
+		if (Status == EPathFollowingStatus::Idle && (DistToRaw <= 380.0f || DistToNav <= 150.0f) && bHasIssuedMoveRequest)
+		{
+			bPathIsIdleAndClose = true;
+		}
+	}
+
+	bool bArrived = bIsTouchingTarget || (DistToRaw <= 200.0f) || (DistToNav <= 120.0f) || bPathReachedGoal || bPathIsIdleAndClose;
 
 	if (bArrived)
 	{
 		if (GetWorld())
 		{
 			GetWorld()->GetTimerManager().ClearTimer(MovementPollTimerHandle);
+			GetWorld()->GetTimerManager().ClearTimer(InitialMoveRetryTimerHandle);
 		}
 
 		if (APawn* Pawn = Cast<APawn>(OwnerActor))
 		{
+			if (AICon)
+			{
+				AICon->StopMovement();
+			}
 			if (Pawn->Implements<UGSPlayerInterface>())
 			{
 				IGSPlayerInterface::Execute_RequestMove(Pawn, FVector2D::ZeroVector);
@@ -316,14 +448,18 @@ void UGSNPCComponentAlphaTest::PollMovementToLocation()
 
 		if (bShowDebugLogs)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[ALPHA_NPC] %s ARRIVED near TargetLocation! Dist: %.1f"), *OwnerActor->GetName(), Dist);
+			UE_LOG(LogTemp, Warning, TEXT("[ALPHA_NPC] %s ARRIVED near TargetLocation! DistRaw: %.1f | DistNav: %.1f"), *OwnerActor->GetName(), DistToRaw, DistToNav);
+			if (GEngine)
+			{
+				GEngine->AddOnScreenDebugMessage(-1, 4.0f, FColor::Green,
+					FString::Printf(TEXT("[ALPHA NPC %s] ARRIVED AT SEAT! Dist: %.1fu"), *OwnerActor->GetName(), DistToRaw));
+			}
 		}
 
 		if (CurrentNPCState == ENPCState::Entering)
 		{
 			SetNPCState(ENPCState::Ordering);
 			ChooseRandomOrder();
-			StartWaitingForFoodTimer();
 			SetNPCState(ENPCState::WaitingForFood);
 		}
 		else if (CurrentNPCState == ENPCState::Leaving)
@@ -338,36 +474,60 @@ void UGSNPCComponentAlphaTest::PollMovementToLocation()
 	}
 	else
 	{
-		FVector NavDir = Dir;
+		float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+
 		if (AICon && AICon->GetPathFollowingComponent())
 		{
-			FVector PathDir = AICon->GetPathFollowingComponent()->GetCurrentDirection();
-			PathDir.Z = 0.0f;
-			if (!PathDir.IsNearlyZero())
+			if (AICon->GetPathFollowingComponent()->GetStatus() == EPathFollowingStatus::Idle && DistToNav > 400.0f)
 			{
-				NavDir = PathDir;
+				if (CurrentTime - LastMoveRetryTime >= 3.0f)
+				{
+					LastMoveRetryTime = CurrentTime;
+
+					FAIMoveRequest MoveReq(CurrentNavTargetLocation);
+					MoveReq.SetAcceptanceRadius(120.0f);
+					MoveReq.SetUsePathfinding(true);
+					MoveReq.SetProjectGoalLocation(true);
+					MoveReq.SetAllowPartialPath(true);
+					AICon->MoveTo(MoveReq);
+
+					if (bShowDebugLogs)
+					{
+						UE_LOG(LogTemp, Warning, TEXT("[ALPHA_NPC] Retried MoveTo for %s (Stalled far away at DistNav: %.1fu)"), *OwnerActor->GetName(), DistToNav);
+					}
+				}
 			}
 		}
-		NavDir.Normalize();
 
-		APawn* Pawn = Cast<APawn>(OwnerActor);
-		if (Pawn)
+		if (bShowDebugLogs && (CurrentTime - LastLogTime >= 1.0f))
 		{
-			FRotator TargetRot = NavDir.Rotation();
-			TargetRot.Pitch = 0.0f;
-			TargetRot.Roll = 0.0f;
+			LastLogTime = CurrentTime;
 
-			if (AController* PawnCon = Pawn->GetController())
+			FString PathStatusStr = TEXT("NO_PATH_COMP");
+			FVector PathDir = FVector::ZeroVector;
+			if (AICon && AICon->GetPathFollowingComponent())
 			{
-				PawnCon->SetControlRotation(TargetRot);
+				UPathFollowingComponent* PathComp = AICon->GetPathFollowingComponent();
+				PathDir = PathComp->GetCurrentDirection();
+				switch (PathComp->GetStatus())
+				{
+				case EPathFollowingStatus::Idle: PathStatusStr = TEXT("Idle"); break;
+				case EPathFollowingStatus::Waiting: PathStatusStr = TEXT("Waiting"); break;
+				case EPathFollowingStatus::Paused: PathStatusStr = TEXT("Paused"); break;
+				case EPathFollowingStatus::Moving: PathStatusStr = TEXT("Moving"); break;
+				}
 			}
 
-			Pawn->SetActorRotation(TargetRot);
-			Pawn->AddMovementInput(NavDir, 1.0f);
-
-			if (Pawn->Implements<UGSPlayerInterface>())
+			if (bShowDebugLogs)
 			{
-				IGSPlayerInterface::Execute_RequestMove(Pawn, FVector2D(0.0f, 1.0f));
+				UE_LOG(LogTemp, Warning, TEXT("[NPC_DEBUG_POLL] '%s' | DistToNav: %.1fu | PathStatus: %s | Dir: %s"),
+					*OwnerActor->GetName(), DistToNav, *PathStatusStr, *PathDir.ToString());
+			}
+
+			if (GEngine && bShowDebugLogs)
+			{
+				GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Magenta,
+					FString::Printf(TEXT("[%s] DistNav: %.1fu | PathStatus: %s"), *OwnerActor->GetName(), DistToNav, *PathStatusStr));
 			}
 		}
 	}
@@ -449,10 +609,53 @@ bool UGSNPCComponentAlphaTest::DeliverItem(AGSItem* Item)
 	return false;
 }
 
+void UGSNPCComponentAlphaTest::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	if (CurrentNPCState == ENPCState::WaitingForFood && TotalFoodWaitTime > 0.0f && ActiveOrderWidgetInstance && GetWorld())
+	{
+		float CurrentServerTime = 0.0f;
+		if (AGameStateBase* GS = GetWorld()->GetGameState())
+		{
+			CurrentServerTime = GS->GetServerWorldTimeSeconds();
+		}
+		else
+		{
+			CurrentServerTime = GetWorld()->GetTimeSeconds();
+		}
+
+		float Elapsed = CurrentServerTime - FoodWaitStartTime;
+		float Percent = FMath::Clamp(1.0f - (Elapsed / TotalFoodWaitTime), 0.0f, 1.0f);
+
+		if (UGSNPCOrderWidget* OrderWidget = Cast<UGSNPCOrderWidget>(ActiveOrderWidgetInstance))
+		{
+			OrderWidget->SetPatiencePercent(Percent);
+		}
+		else if (UGSFloatingWidgetBase* BaseWidget = Cast<UGSFloatingWidgetBase>(ActiveOrderWidgetInstance))
+		{
+			BaseWidget->SetProgress(Percent);
+		}
+	}
+}
+
 void UGSNPCComponentAlphaTest::StartWaitingForFoodTimer()
 {
 	if (!GetWorld()) return;
 	float WaitTime = FoodWaitTime > 0.0f ? FoodWaitTime : 45.0f;
+	TotalFoodWaitTime = WaitTime;
+
+	float CurrentServerTime = 0.0f;
+	if (AGameStateBase* GS = GetWorld()->GetGameState())
+	{
+		CurrentServerTime = GS->GetServerWorldTimeSeconds();
+	}
+	else
+	{
+		CurrentServerTime = GetWorld()->GetTimeSeconds();
+	}
+	FoodWaitStartTime = CurrentServerTime;
+
 	GetWorld()->GetTimerManager().SetTimer(FoodWaitTimerHandle, this, &UGSNPCComponentAlphaTest::HandleFoodWaitTimeout, WaitTime, false);
 
 	if (bShowDebugLogs)
@@ -473,7 +676,16 @@ void UGSNPCComponentAlphaTest::HandleFoodWaitTimeout()
 
 	SetNPCState(ENPCState::Leaving);
 	ReleaseCurrentSmartObject();
-	ClaimAndMoveToSmartObject(ExitSmartObjectTag);
+	bool bMoved = ClaimAndMoveToSmartObject(ExitSmartObjectTag);
+
+	if (!bMoved && GetOwner())
+	{
+		if (bShowDebugLogs)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[ALPHA_NPC] %s could not find Exit SmartObject! Destroying actor fallback."), *GetOwner()->GetName());
+		}
+		GetOwner()->SetLifeSpan(3.0f);
+	}
 }
 
 void UGSNPCComponentAlphaTest::StartEatingTimer()
@@ -514,19 +726,39 @@ void UGSNPCComponentAlphaTest::CreateOrUpdateOrderWidget()
 {
 	if (!OrderWidgetClass || !GetOwner()) return;
 
-	APawn* OwnerPawn = Cast<APawn>(GetOwner());
-	APlayerController* PC = OwnerPawn ? Cast<APlayerController>(OwnerPawn->GetController()) : nullptr;
-	if (!PC)
+	AActor* OwnerActor = GetOwner();
+	if (!OrderWidgetComponent && OwnerActor)
 	{
-		PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+		OrderWidgetComponent = OwnerActor->FindComponentByClass<UGSBillboardWidgetComponent>();
+		if (!OrderWidgetComponent)
+		{
+			OrderWidgetComponent = NewObject<UGSBillboardWidgetComponent>(OwnerActor, TEXT("NPCOrderWidgetComp"));
+			if (OrderWidgetComponent)
+			{
+				OrderWidgetComponent->RegisterComponent();
+				USceneComponent* RootComp = OwnerActor->GetRootComponent();
+				if (RootComp)
+				{
+					OrderWidgetComponent->AttachToComponent(RootComp, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+				}
+				OrderWidgetComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 120.0f));
+			}
+		}
 	}
 
-	if (!ActiveOrderWidgetInstance && PC && PC->IsLocalController())
+	if (OrderWidgetComponent)
 	{
-		ActiveOrderWidgetInstance = CreateWidget<UUserWidget>(PC, OrderWidgetClass);
-		if (ActiveOrderWidgetInstance)
+		OrderWidgetComponent->SetWidgetClass(OrderWidgetClass);
+		OrderWidgetComponent->SetVisibility(true);
+
+		ActiveOrderWidgetInstance = OrderWidgetComponent->GetUserWidgetObject();
+		if (UGSNPCOrderWidget* OrderWidget = Cast<UGSNPCOrderWidget>(ActiveOrderWidgetInstance))
 		{
-			ActiveOrderWidgetInstance->AddToViewport();
+			OrderWidget->SetOrderDetails(ActiveOrder);
+		}
+		else if (UGSFloatingWidgetBase* BaseWidget = Cast<UGSFloatingWidgetBase>(ActiveOrderWidgetInstance))
+		{
+			BaseWidget->SetWidgetData(ActiveOrder.FoodIcon, ActiveOrder.FoodName, FText::GetEmpty(), 1.0f);
 		}
 	}
 
@@ -535,11 +767,11 @@ void UGSNPCComponentAlphaTest::CreateOrUpdateOrderWidget()
 
 void UGSNPCComponentAlphaTest::RemoveOrderWidget()
 {
-	if (ActiveOrderWidgetInstance)
+	if (OrderWidgetComponent)
 	{
-		ActiveOrderWidgetInstance->RemoveFromParent();
-		ActiveOrderWidgetInstance = nullptr;
+		OrderWidgetComponent->SetVisibility(false);
 	}
+	ActiveOrderWidgetInstance = nullptr;
 }
 
 void UGSNPCComponentAlphaTest::OnCapsuleOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
