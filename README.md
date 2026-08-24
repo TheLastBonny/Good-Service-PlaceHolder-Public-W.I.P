@@ -103,6 +103,26 @@ Modeled after community standards such as Tranek's GAS Documentation, this guide
 
 </details>
 
+<details>
+<summary><b>4. Guía de Pipeline 3D: Creación de Assets, Texturizado, Rigging y Animaciones</b></summary>
+
+<br>
+
+### 3D Asset & Animation Technical Manual
+
+Guía completa ilustrada paso a paso para la creación, optimización e integración de modelos 3D y animaciones:
+
+* **Texturizado PBR Completo:** Flujo de trabajo integral entre Blender, Substance 3D Painter y Unreal Engine 5.8 (Node Wrangler, mapas ORM, corrección de plantillas de exportación).
+* **Colisiones en Unreal Engine:** Generación y calibración de colisiones simples y Auto Convex Decomposition en el Static Mesh Editor.
+* **Shaders Especializados:** Creación de materiales de cristal translúcido y materiales luminosos emisivos con control dinámico de intensidad.
+* **Captura de Movimiento con MetaHuman Animator:** Extracción de animación corporal sin marcadores (Markerless MoCap), Live Link Hub y retargeting de esqueleto hacia personajes estilizados en Blender (Rokoko Studio).
+* **Guía de Weight Painting:** Asignación y normalización de influencias de vértices en articulaciones.
+* **Checklist de Optimización:** Verificación de escala, pivote \(Z=0\), geometría non-manifold, normales y exportación FBX limpia.
+
+**[Leer Guía de Pipeline 3D](docs/3D_PIPELINE_DOCUMENTATION.md)**
+
+</details>
+
 ---
 
 ## Directory Structure
@@ -118,7 +138,10 @@ Modeled after community standards such as Tranek's GAS Documentation, this guide
 ├── docs/
 │   ├── QUICK_START.md             # 5-Minute Creator Quick Start Guide (No-Code)
 │   ├── PROJECT_DOCUMENTATION.md   # Creator & Editor Workflow Guide
-│   └── TECHNICAL_DOCUMENTATION.md # Mover, GAS & Verse Technical Framework Guide
+│   ├── TECHNICAL_DOCUMENTATION.md # Mover, GAS & Verse Technical Framework Guide
+│   ├── 3D_PIPELINE_DOCUMENTATION.md # 3D Asset, Texturing, Rigging & Animation Pipeline Guide
+│   └── images/
+│       └── 3d_pipeline/           # High-resolution screenshots and pipeline diagrams
 ├── CONTRIBUTING.md                # Community Contribution Guidelines
 ├── LICENSE                        # CC BY-NC-SA 4.0 Legal License
 └── ProjectF.uproject              # Unreal Engine 5.8 Project File
