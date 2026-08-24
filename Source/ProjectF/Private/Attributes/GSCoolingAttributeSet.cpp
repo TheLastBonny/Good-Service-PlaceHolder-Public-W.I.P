@@ -40,7 +40,8 @@ void UGSCoolingAttributeSet::PostAttributeChange(const FGameplayAttribute& Attri
 		if (UAbilitySystemComponent* ASC = GetOwningAbilitySystemComponent())
 		{
 			const FGameplayTag CooledTag = GSGameplayTags::State_Cooled;
-			if (NewValue >= GetMaxCoolingProgress())
+			const float MaxProgress = GetMaxCoolingProgress();
+			if (MaxProgress > 0.f && NewValue >= MaxProgress)
 			{
 				if (!ASC->HasMatchingGameplayTag(CooledTag))
 				{

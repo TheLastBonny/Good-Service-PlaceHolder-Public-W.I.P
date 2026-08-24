@@ -21,7 +21,7 @@ void UGSItemStateAction_MeshOverride::Execute(AActor* Owner)
 	bool bShowDebug = ShouldLogDebugForOwner(Owner);
 	if (bShowDebug)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[MESH_DEBUG] UGSItemStateAction_MeshOverride::Execute ejecutado en el actor %s"), Owner ? *Owner->GetName() : TEXT("NULL"));
+		UE_LOG(LogTemp, Warning, TEXT("[MESH_DEBUG] UGSItemStateAction_MeshOverride::Execute on actor %s"), Owner ? *Owner->GetName() : TEXT("NULL"));
 	}
 	if (!Owner) return;
 	
@@ -29,7 +29,7 @@ void UGSItemStateAction_MeshOverride::Execute(AActor* Owner)
 	{
 		if (bShowDebug)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[MESH_DEBUG] MeshOverride es NULL en %s"), *Owner->GetName());
+			UE_LOG(LogTemp, Warning, TEXT("[MESH_DEBUG] MeshOverride is NULL on %s"), *Owner->GetName());
 		}
 		return;
 	}
@@ -40,14 +40,14 @@ void UGSItemStateAction_MeshOverride::Execute(AActor* Owner)
 		MeshComp->SetStaticMesh(MeshOverride);
 		if (bShowDebug)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[MESH_DEBUG] Malla establecida con éxito a %s en %s"), *MeshOverride->GetName(), *Owner->GetName());
+			UE_LOG(LogTemp, Warning, TEXT("[MESH_DEBUG] Static mesh successfully set to %s on %s"), *MeshOverride->GetName(), *Owner->GetName());
 		}
 	}
 	else
 	{
 		if (bShowDebug)
 		{
-			UE_LOG(LogTemp, Error, TEXT("[MESH_DEBUG] ¡No se encontró ningún UStaticMeshComponent en %s!"), *Owner->GetName());
+			UE_LOG(LogTemp, Error, TEXT("[MESH_DEBUG] No UStaticMeshComponent found on %s!"), *Owner->GetName());
 		}
 	}
 }
@@ -57,7 +57,7 @@ void UGSItemStateAction_PlaySound::Execute(AActor* Owner)
 	if (!Owner || !SoundOverride) return;
 	if (ShouldLogDebugForOwner(Owner))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[SOUND_DEBUG] Reproduciendo sonido %s en %s"), *SoundOverride->GetName(), *Owner->GetName());
+		UE_LOG(LogTemp, Warning, TEXT("[SOUND_DEBUG] Playing sound %s on %s"), *SoundOverride->GetName(), *Owner->GetName());
 	}
 	if (Owner->GetNetMode() != NM_DedicatedServer)
 	{
@@ -70,7 +70,7 @@ void UGSItemStateAction_SpawnParticles::Execute(AActor* Owner)
 	if (!Owner || !ParticleOverride) return;
 	if (ShouldLogDebugForOwner(Owner))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[PARTICLE_DEBUG] Spawneando partículas %s en %s"), *ParticleOverride->GetName(), *Owner->GetName());
+		UE_LOG(LogTemp, Warning, TEXT("[PARTICLE_DEBUG] Spawning particles %s on %s"), *ParticleOverride->GetName(), *Owner->GetName());
 	}
 	if (Owner->GetNetMode() != NM_DedicatedServer)
 	{

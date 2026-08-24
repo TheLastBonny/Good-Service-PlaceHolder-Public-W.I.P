@@ -40,7 +40,8 @@ void UGSFillAttributeSet::PostAttributeChange(const FGameplayAttribute& Attribut
 		if (UAbilitySystemComponent* ASC = GetOwningAbilitySystemComponent())
 		{
 			const FGameplayTag FilledTag = GSGameplayTags::State_Filled;
-			if (NewValue >= GetMaxFillProgress())
+			const float MaxProgress = GetMaxFillProgress();
+			if (MaxProgress > 0.f && NewValue >= MaxProgress)
 			{
 				if (!ASC->HasMatchingGameplayTag(FilledTag))
 				{

@@ -72,13 +72,12 @@ void UGSCookingAttributeSet::PostAttributeChange(const FGameplayAttribute& Attri
 		if (UAbilitySystemComponent* ASC = GetOwningAbilitySystemComponent())
 		{
 			const FGameplayTag CookedTag = GSGameplayTags::State_Cooked;
-			if (NewValue >= GetMaxCookingProgress())
+			const float MaxProgress = GetMaxCookingProgress();
+			if (MaxProgress > 0.f && NewValue >= MaxProgress)
 			{
 				if (!ASC->HasMatchingGameplayTag(CookedTag))
 				{
-
 					ASC->AddLooseGameplayTag(CookedTag, 1, EGameplayTagReplicationState::TagOnly);
-
 					ASC->RemoveLooseGameplayTag(GSGameplayTags::State_Raw, 1, EGameplayTagReplicationState::TagOnly);
 				}
 			}

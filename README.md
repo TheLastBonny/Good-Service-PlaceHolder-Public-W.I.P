@@ -105,45 +105,6 @@ Modeled after community standards such as Tranek's GAS Documentation, this guide
 
 ---
 
-## Architecture Flowchart
-
-```mermaid
-flowchart TD
-    subgraph Client ["Client / Local Simulation"]
-        Input["Player Input / UI"] --> InputProd["IMoverInputProducerInterface"]
-        InputProd --> CmdCtx["FMoverInputCmdContext"]
-        CmdCtx --> LocalMover["Mover Physics Solver (Predictive)"]
-    end
-
-    subgraph Network ["Network Layer (Network Prediction Plugin)"]
-        CmdCtx -. UDP Sync .-> ServerMover["Server Mover Solver"]
-        ServerMover -. Sync State / Rollback .-> LocalMover
-    end
-
-    subgraph Server ["Authoritative Server"]
-        ServerMover --> Pawn["AGSPawn Entity"]
-        Pawn <--> GAS["Gameplay Ability System (ASC)"]
-        GAS <--> Attr["WalkSpeed / Health / Patience Attributes"]
-        Attr --> SpeedUpdate["OnWalkSpeedChanged Callback"]
-        SpeedUpdate --> ServerMover
-    end
-
-    subgraph AI ["StateTree Customer AI"]
-        ST["StateTree Execution Context"] --> Task1["Assign Table"]
-        ST --> Task2["Choose Random Order"]
-        ST --> Task3["Send To Exit"]
-        Task1 & Task2 & Task3 --> NPCComp["UGSNPCComponent"]
-    end
-
-    subgraph World ["World Interactions"]
-        GAS <--> Station["AGSUtilityStation"]
-        Station -- "Apply GE" --> Item["AGSItem (Local ASC)"]
-        Item <--> DataAsset["UGSItemDataAsset"]
-    end
-```
-
----
-
 ## Directory Structure
 
 ```
@@ -189,7 +150,7 @@ flowchart TD
 This project is licensed under the **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0)**.
 
 * **Non-Commercial:** You are free to view, clone, study, and test the project for non-commercial and educational purposes. Commercial distribution or unauthorized monetization is strictly prohibited.
-* **Attribution:** Any usage or derivative work must retain full attribution to the original author (`TheLastBonny`).
+* **Attribution:** Any usage or derivative work must retain full attribution to the original author.
 * **Contributions:** Community members are welcome to contribute via Pull Requests targeting the `develop` branch. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ---

@@ -1,5 +1,7 @@
 #include "Machines/GSUtilityStation.h"
 #include "Components/BoxComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMeshSocket.h"
 #include "AbilitySystemComponent.h"
 #include "AttributeSet.h"
 #include "GameplayEffect.h"
@@ -26,8 +28,10 @@ AGSUtilityStation::AGSUtilityStation()
 	AbilitySystemComponent->SetIsReplicated(true);
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
 
-	bHidePlacedItems = true;
+	bHidePlacedItems = false;
 	bLimitToSockets = false;
+	bAutoDiscoverSockets = false;
+	bRandomizeSocketPlacement = false;
 }
 
 UAbilitySystemComponent* AGSUtilityStation::GetAbilitySystemComponent() const
@@ -65,11 +69,7 @@ void AGSUtilityStation::HandleItemAddedToStation(AActor* Item)
 {
 	if (IsValid(Item))
 	{
-
-		if (bHidePlacedItems)
-		{
-			Item->SetActorHiddenInGame(true);
-		}
+		Item->SetActorHiddenInGame(bHidePlacedItems);
 
 
 		UPrimitiveComponent* PrimRoot = Cast<UPrimitiveComponent>(Item->GetRootComponent());
@@ -85,23 +85,21 @@ void AGSUtilityStation::HandleItemAddedToStation(AActor* Item)
 
 		if (HasAuthority())
 		{
-			FName FreeSocket = GetFirstFreeSocket();
-			if (!FreeSocket.IsNone())
+			if (Item->GetAttachParentActor() != this)
 			{
-				USceneComponent* AttachTarget = GetRootComponent();
-				if (UMeshComponent* MeshComp = FindComponentByClass<UMeshComponent>())
+				FName FreeSocket = GetFreeSocket();
+				if (!FreeSocket.IsNone())
 				{
-					AttachTarget = MeshComp;
+					USceneComponent* AttachTarget = FindAttachComponentForSocket(FreeSocket);
+					if (AttachTarget)
+					{
+						Item->AttachToComponent(AttachTarget, FAttachmentTransformRules::SnapToTargetIncludingScale, FreeSocket);
+					}
 				}
-
-				if (AttachTarget)
+				else
 				{
-					Item->AttachToComponent(AttachTarget, FAttachmentTransformRules::SnapToTargetIncludingScale, FreeSocket);
+					Item->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
 				}
-			}
-			else
-			{
-				Item->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
 			}
 		}
 
@@ -114,20 +112,18 @@ void AGSUtilityStation::HandleItemAddedToStation(AActor* Item)
 				TWeakObjectPtr<AActor> WeakItem = Item;
 
 
-				if (StationSubscriptions.Contains(WeakItem))
+				if (!StationSubscriptions.Contains(WeakItem))
 				{
-					return;
-				}
+					FGSItemSubscription& Sub = StationSubscriptions.FindOrAdd(WeakItem);
 
-				FGSItemSubscription& Sub = StationSubscriptions.FindOrAdd(WeakItem);
+					for (const TPair<FGameplayTag, FGSItemStateDetails>& StatePair : GSItem->ItemData->ItemStatesMap)
+					{
+						const FGameplayTag& StateTag = StatePair.Key;
+						FDelegateHandle Handle = TargetASC->RegisterGameplayTagEvent(StateTag, EGameplayTagEventType::NewOrRemoved)
+							.AddUObject(this, &AGSUtilityStation::OnItemStateTagChanged, StateTag, WeakItem);
 
-				for (const TPair<FGameplayTag, FGSItemStateDetails>& StatePair : GSItem->ItemData->ItemStatesMap)
-				{
-					const FGameplayTag& StateTag = StatePair.Key;
-					FDelegateHandle Handle = TargetASC->RegisterGameplayTagEvent(StateTag, EGameplayTagEventType::NewOrRemoved)
-						.AddUObject(this, &AGSUtilityStation::OnItemStateTagChanged, StateTag, WeakItem);
-
-					Sub.TagHandles.Add(StateTag, Handle);
+						Sub.TagHandles.Add(StateTag, Handle);
+					}
 				}
 			}
 		}
@@ -138,6 +134,14 @@ void AGSUtilityStation::HandleItemAddedToStation(AActor* Item)
 			GrabComp->OnGrabbed.AddUniqueDynamic(this, &AGSUtilityStation::OnPlacedItemGrabbed);
 		}
 
+
+		for (UGSStationModule* Mod : RuntimeModules)
+		{
+			if (Mod)
+			{
+				Mod->OnItemAdded(this, Item);
+			}
+		}
 
 		UE_LOG(LogTemp, Log, TEXT("[STATION_DEBUG] OnItemAddedToStation: Item %s attached and hidden"), *Item->GetName());
 
@@ -199,26 +203,66 @@ void AGSUtilityStation::HandleItemRemovedFromStation(AActor* Item)
 		}
 
 
+		for (UGSStationModule* Mod : RuntimeModules)
+		{
+			if (Mod)
+			{
+				Mod->OnItemRemoved(this, Item);
+			}
+		}
+
 		UE_LOG(LogTemp, Log, TEXT("[STATION_DEBUG] OnItemRemovedFromStation: Item %s detached and shown"), *Item->GetName());
 
 		OnItemRemovedFromStation(Item);
 	}
 }
 
+void AGSUtilityStation::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+
+	if (bAutoDiscoverSockets)
+	{
+		CacheMeshSockets();
+	}
+}
+
+void AGSUtilityStation::DiscoverSocketsFromMesh()
+{
+	bAutoDiscoverSockets = true;
+	CacheMeshSockets();
+}
+
 void AGSUtilityStation::BeginPlay()
 {
 	Super::BeginPlay();
 
+	CacheMeshSockets();
 
 	if (StationData)
 	{
 		EffectsToApply = StationData->StationDetails.EffectsToApply;
 		AttributeSets = StationData->StationDetails.AttributeSets;
 		ConditionalEffectsFromData = StationData->StationDetails.ConditionalEffects;
+		bHidePlacedItems = StationData->StationDetails.bHidePlacedItems;
 
 		if (StationVolume)
 		{
 			StationVolume->SetBoxExtent(StationData->StationDetails.HitBoxSize, true);
+		}
+
+		RuntimeModules.Empty();
+		for (UGSStationModule* ModuleTemplate : StationData->Modules)
+		{
+			if (ModuleTemplate)
+			{
+				UGSStationModule* RuntimeMod = DuplicateObject<UGSStationModule>(ModuleTemplate, this);
+				if (RuntimeMod)
+				{
+					RuntimeMod->InitializeModule(this);
+					RuntimeModules.Add(RuntimeMod);
+				}
+			}
 		}
 	}
 
@@ -242,6 +286,20 @@ void AGSUtilityStation::BeginPlay()
 		StationVolume->OnComponentBeginOverlap.AddDynamic(this, &AGSUtilityStation::OnOverlapBegin);
 		StationVolume->OnComponentEndOverlap.AddDynamic(this, &AGSUtilityStation::OnOverlapEnd);
 	}
+}
+
+void AGSUtilityStation::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	for (UGSStationModule* Mod : RuntimeModules)
+	{
+		if (Mod)
+		{
+			Mod->ShutdownModule(this);
+		}
+	}
+	RuntimeModules.Empty();
+
+	Super::EndPlay(EndPlayReason);
 }
 
 AActor* AGSUtilityStation::GetLastPlacedItem() const
@@ -341,6 +399,114 @@ AActor* AGSUtilityStation::GetFirstReadyItem() const
 	return GetLastPlacedItem();
 }
 
+bool AGSUtilityStation::IsSocketOccupied(FName SocketName) const
+{
+	if (SocketName.IsNone())
+	{
+		return false;
+	}
+
+	for (const AActor* PlacedItem : PlacedItems)
+	{
+		if (IsValid(PlacedItem) && PlacedItem->GetRootComponent())
+		{
+			if (PlacedItem->GetRootComponent()->GetAttachSocketName() == SocketName)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+AActor* AGSUtilityStation::GetItemInSocket(FName SocketName) const
+{
+	if (SocketName.IsNone())
+	{
+		return nullptr;
+	}
+
+	for (AActor* PlacedItem : PlacedItems)
+	{
+		if (IsValid(PlacedItem) && PlacedItem->GetRootComponent())
+		{
+			if (PlacedItem->GetRootComponent()->GetAttachSocketName() == SocketName)
+			{
+				return PlacedItem;
+			}
+		}
+	}
+	return nullptr;
+}
+
+bool AGSUtilityStation::PlaceItemInSocket(AActor* Item, FName SocketName)
+{
+	if (!HasAuthority() || !IsValid(Item))
+	{
+		return false;
+	}
+
+	if (!SocketName.IsNone() && IsSocketOccupied(SocketName))
+	{
+		return false;
+	}
+
+	if (!PlacedItems.Contains(Item))
+	{
+		PlacedItems.Add(Item);
+	}
+
+	USceneComponent* AttachTarget = FindAttachComponentForSocket(SocketName);
+	if (AttachTarget && !SocketName.IsNone() && AttachTarget->DoesSocketExist(SocketName))
+	{
+		Item->AttachToComponent(AttachTarget, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
+	}
+	else
+	{
+		Item->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
+	}
+
+	HandleItemAddedToStation(Item);
+	UpdateEffectsForItem(Item);
+	return true;
+}
+
+AActor* AGSUtilityStation::SpawnItemInSocket(TSubclassOf<AActor> ItemClass, FName SocketName)
+{
+	if (!HasAuthority() || !ItemClass)
+	{
+		return nullptr;
+	}
+
+	if (!SocketName.IsNone() && IsSocketOccupied(SocketName))
+	{
+		return nullptr;
+	}
+
+	USceneComponent* AttachTarget = FindAttachComponentForSocket(SocketName);
+	FTransform SpawnTransform = GetActorTransform();
+	if (AttachTarget && !SocketName.IsNone() && AttachTarget->DoesSocketExist(SocketName))
+	{
+		SpawnTransform = AttachTarget->GetSocketTransform(SocketName);
+	}
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	AActor* NewItem = GetWorld()->SpawnActor<AActor>(ItemClass, SpawnTransform, SpawnParams);
+	if (NewItem)
+	{
+		PlaceItemInSocket(NewItem, SocketName);
+		if (bShowDebugLogs)
+		{
+			UE_LOG(LogTemp, Log, TEXT("[STATION] Spawned item %s in socket %s"), *NewItem->GetName(), *SocketName.ToString());
+		}
+	}
+
+	return NewItem;
+}
+
 void AGSUtilityStation::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	if (!HasAuthority()) { return; }
@@ -365,7 +531,7 @@ void AGSUtilityStation::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AAct
 				}
 
 
-				if (bLimitToSockets && GetFirstFreeSocket().IsNone())
+				if (bLimitToSockets && GetFreeSocket().IsNone())
 				{
 					return;
 				}
@@ -461,25 +627,122 @@ FName AGSUtilityStation::GetFirstFreeSocket() const
 {
 	for (const FName& SocketName : StationSockets)
 	{
-		bool bIsOccupied = false;
-		for (const AActor* PlacedItem : PlacedItems)
-		{
-			if (IsValid(PlacedItem) && PlacedItem->GetRootComponent())
-			{
-				if (PlacedItem->GetRootComponent()->GetAttachSocketName() == SocketName)
-				{
-					bIsOccupied = true;
-					break;
-				}
-			}
-		}
-
-		if (!bIsOccupied)
+		if (!IsSocketOccupied(SocketName))
 		{
 			return SocketName;
 		}
 	}
 	return NAME_None;
+}
+
+FName AGSUtilityStation::GetRandomFreeSocket() const
+{
+	TArray<FName> FreeSockets = GetAllFreeSockets();
+	if (FreeSockets.Num() > 0)
+	{
+		int32 RandomIndex = FMath::RandRange(0, FreeSockets.Num() - 1);
+		return FreeSockets[RandomIndex];
+	}
+	return NAME_None;
+}
+
+FName AGSUtilityStation::GetFreeSocket() const
+{
+	if (bRandomizeSocketPlacement)
+	{
+		return GetRandomFreeSocket();
+	}
+	return GetFirstFreeSocket();
+}
+
+TArray<FName> AGSUtilityStation::GetAllFreeSockets() const
+{
+	TArray<FName> FreeSockets;
+	for (const FName& SocketName : StationSockets)
+	{
+		if (!IsSocketOccupied(SocketName))
+		{
+			FreeSockets.Add(SocketName);
+		}
+	}
+	return FreeSockets;
+}
+
+USceneComponent* AGSUtilityStation::FindAttachComponentForSocket(FName SocketName) const
+{
+	if (!SocketName.IsNone())
+	{
+		TArray<USceneComponent*> SceneComps;
+		GetComponents<USceneComponent>(SceneComps);
+		for (USceneComponent* Comp : SceneComps)
+		{
+			if (Comp && Comp->DoesSocketExist(SocketName))
+			{
+				return Comp;
+			}
+		}
+	}
+
+	if (UMeshComponent* MeshComp = FindComponentByClass<UMeshComponent>())
+	{
+		return MeshComp;
+	}
+
+	return GetRootComponent();
+}
+
+void AGSUtilityStation::CacheMeshSockets()
+{
+	if (!bAutoDiscoverSockets)
+	{
+		return;
+	}
+
+	StationSockets.Empty();
+
+	// 1. Direct StaticMesh asset inspection
+	TArray<UStaticMeshComponent*> StaticMeshComponents;
+	GetComponents<UStaticMeshComponent>(StaticMeshComponents);
+	for (UStaticMeshComponent* SMC : StaticMeshComponents)
+	{
+		if (SMC && SMC->GetStaticMesh())
+		{
+			for (const UStaticMeshSocket* Socket : SMC->GetStaticMesh()->Sockets)
+			{
+				if (Socket)
+				{
+					const FName SName = Socket->SocketName;
+					if (SocketPrefixFilter.IsEmpty() || SName.ToString().StartsWith(SocketPrefixFilter))
+					{
+						StationSockets.AddUnique(SName);
+					}
+				}
+			}
+		}
+	}
+
+	// 2. Mesh components GetAllSocketNames fallback
+	TArray<UMeshComponent*> MeshComponents;
+	GetComponents<UMeshComponent>(MeshComponents);
+	for (UMeshComponent* MeshComp : MeshComponents)
+	{
+		if (MeshComp)
+		{
+			TArray<FName> MeshSockets = MeshComp->GetAllSocketNames();
+			for (const FName& SName : MeshSockets)
+			{
+				if (SocketPrefixFilter.IsEmpty() || SName.ToString().StartsWith(SocketPrefixFilter))
+				{
+					StationSockets.AddUnique(SName);
+				}
+			}
+		}
+	}
+
+	if (bShowDebugLogs)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[STATION] CacheMeshSockets on %s: Discovered %d sockets"), *GetName(), StationSockets.Num());
+	}
 }
 
 void AGSUtilityStation::UpdateEffectsForItem(AActor* Item)

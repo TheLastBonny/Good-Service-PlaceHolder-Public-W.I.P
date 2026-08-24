@@ -22,8 +22,8 @@ bool UGSSkinLibrary::OpenSkinFileDialog(FString& OutFilePath)
 	{
 		const void* ParentWindowHandle = FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr);
 		TArray<FString> OpenFilenames;
-		const FString Title = TEXT("Seleccionar Skin (.png)");
-		const FString FileTypes = TEXT("Imágenes (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg|Todos los archivos (*.*)|*.*");
+		const FString Title = TEXT("Select Skin (.png)");
+		const FString FileTypes = TEXT("Images (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg|All Files (*.*)|*.*");
 
 		bool bOpened = DesktopPlatform->OpenFileDialog(
 			ParentWindowHandle,
@@ -57,7 +57,7 @@ UTexture2D* UGSSkinLibrary::LoadTextureFromFile(const FString& FilePath, TArray<
 
 	if (!FFileHelper::LoadFileToArray(OutRawBytes, *FilePath))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[GSSkinLibrary] Error al leer el archivo en ruta: %s"), *FilePath);
+		UE_LOG(LogTemp, Warning, TEXT("[GSSkinLibrary] Failed to read file at path: %s"), *FilePath);
 		return nullptr;
 	}
 
@@ -68,7 +68,7 @@ UTexture2D* UGSSkinLibrary::LoadTextureFromBuffer(const TArray<uint8>& Buffer)
 {
 	if (Buffer.Num() == 0)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[GSSkinLibrary] El buffer de imagen está vacío."));
+		UE_LOG(LogTemp, Warning, TEXT("[GSSkinLibrary] Image buffer is empty."));
 		return nullptr;
 	}
 
@@ -76,21 +76,21 @@ UTexture2D* UGSSkinLibrary::LoadTextureFromBuffer(const TArray<uint8>& Buffer)
 	EImageFormat Format = ImageWrapperModule.DetectImageFormat(Buffer.GetData(), Buffer.Num());
 	if (Format == EImageFormat::Invalid)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[GSSkinLibrary] Formato de imagen no válido."));
+		UE_LOG(LogTemp, Warning, TEXT("[GSSkinLibrary] Invalid image format."));
 		return nullptr;
 	}
 
 	TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(Format);
 	if (!ImageWrapper.IsValid() || !ImageWrapper->SetCompressed(Buffer.GetData(), Buffer.Num()))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[GSSkinLibrary] Falló al establecer datos comprimidos de imagen."));
+		UE_LOG(LogTemp, Warning, TEXT("[GSSkinLibrary] Failed to set compressed image data."));
 		return nullptr;
 	}
 
 	TArray<uint8> RawData;
 	if (!ImageWrapper->GetRaw(ERGBFormat::BGRA, 8, RawData))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[GSSkinLibrary] Falló al obtener datos RAW de la imagen."));
+		UE_LOG(LogTemp, Warning, TEXT("[GSSkinLibrary] Failed to get RAW image data."));
 		return nullptr;
 	}
 
