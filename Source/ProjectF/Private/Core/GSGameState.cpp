@@ -2,6 +2,7 @@
 #include "AbilitySystemComponent.h"
 #include "Attributes/GSMoneyAttributeSet.h"
 #include "Core/GSNPCManager.h"
+#include "Components/StateTreeComponent.h"
 #include "Net/UnrealNetwork.h"
 
 AGSGameState::AGSGameState()
@@ -13,6 +14,7 @@ AGSGameState::AGSGameState()
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
 
 	MoneyAttributeSet = CreateDefaultSubobject<UGSMoneyAttributeSet>(TEXT("MoneyAttributeSet"));
+	StateTreeComponent = CreateDefaultSubobject<UStateTreeComponent>(TEXT("StateTreeComponent"));
 
 	CurrentPhase = EGSGamePhase::WaitingToStart;
 	RemainingTime = 0.0f;
@@ -34,6 +36,8 @@ void AGSGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(AGSGameState, CurrentPhase);
+	DOREPLIFETIME(AGSGameState, PrimaryPhaseTag);
+	DOREPLIFETIME(AGSGameState, ActivePhaseTags);
 	DOREPLIFETIME(AGSGameState, RemainingTime);
 }
 
@@ -93,23 +97,13 @@ void AGSGameState::SetGamePhase(EGSGamePhase NewPhase)
 
 		if (CurrentPhase == EGSGamePhase::RoundInProgress)
 		{
-			StartRoundTimer();
 			if (NPCManager)
 			{
 				NPCManager->StartSpawning();
 			}
 		}
-		else if (CurrentPhase == EGSGamePhase::RoundOver)
+		else
 		{
-			StopRoundTimer();
-			if (NPCManager)
-			{
-				NPCManager->StopSpawning();
-			}
-		}
-		else if (CurrentPhase == EGSGamePhase::WaitingToStart)
-		{
-			StopRoundTimer();
 			if (NPCManager)
 			{
 				NPCManager->StopSpawning();
@@ -118,12 +112,53 @@ void AGSGameState::SetGamePhase(EGSGamePhase NewPhase)
 	}
 }
 
+void AGSGameState::SetPrimaryPhaseTag(FGameplayTag NewPhaseTag)
+{
+	if (HasAuthority() && PrimaryPhaseTag != NewPhaseTag)
+	{
+		FGameplayTag OldTag = PrimaryPhaseTag;
+		PrimaryPhaseTag = NewPhaseTag;
+		OnRep_PrimaryPhaseTag(OldTag);
+	}
+}
+
+void AGSGameState::AddPhaseTag(FGameplayTag PhaseTag)
+{
+	if (HasAuthority() && PhaseTag.IsValid() && !ActivePhaseTags.HasTagExact(PhaseTag))
+	{
+		ActivePhaseTags.AddTag(PhaseTag);
+		OnPhaseTagAddedRemoved.Broadcast(PhaseTag, true);
+	}
+}
+
+void AGSGameState::RemovePhaseTag(FGameplayTag PhaseTag)
+{
+	if (HasAuthority() && PhaseTag.IsValid() && ActivePhaseTags.HasTagExact(PhaseTag))
+	{
+		ActivePhaseTags.RemoveTag(PhaseTag);
+		OnPhaseTagAddedRemoved.Broadcast(PhaseTag, false);
+	}
+}
+
+bool AGSGameState::HasPhaseTag(FGameplayTag PhaseTag) const
+{
+	return ActivePhaseTags.HasTagExact(PhaseTag) || (PrimaryPhaseTag.IsValid() && PrimaryPhaseTag.MatchesTag(PhaseTag));
+}
+
 void AGSGameState::SetRemainingTime(float NewTime)
 {
 	if (HasAuthority())
 	{
 		RemainingTime = FMath::Max(NewTime, 0.0f);
 		OnRemainingTimeChanged.Broadcast(RemainingTime);
+	}
+}
+
+void AGSGameState::AddRemainingTime(float TimeToAdd)
+{
+	if (HasAuthority() && TimeToAdd != 0.0f)
+	{
+		SetRemainingTime(RemainingTime + TimeToAdd);
 	}
 }
 
@@ -155,7 +190,6 @@ void AGSGameState::DecrementRoundTime()
 		if (RemainingTime <= 0.0f)
 		{
 			StopRoundTimer();
-			SetGamePhase(EGSGamePhase::RoundOver);
 		}
 	}
 }
@@ -174,6 +208,15 @@ void AGSGameState::RegisterNPCManager(AGSNPCManager* Manager)
 void AGSGameState::OnRep_CurrentPhase(EGSGamePhase OldPhase)
 {
 	OnGamePhaseChanged.Broadcast(CurrentPhase);
+}
+
+void AGSGameState::OnRep_PrimaryPhaseTag(FGameplayTag OldTag)
+{
+	OnPrimaryPhaseTagChanged.Broadcast(PrimaryPhaseTag);
+}
+
+void AGSGameState::OnRep_ActivePhaseTags(FGameplayTagContainer OldTags)
+{
 }
 
 void AGSGameState::OnRep_RemainingTime(float OldTime)

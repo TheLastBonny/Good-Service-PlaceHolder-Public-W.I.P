@@ -44,6 +44,7 @@ void AGSAbilityUpgradeStation::OnOverlapBegin(UPrimitiveComponent* OverlappedCom
 
 void AGSAbilityUpgradeStation::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
+	// Can be used for UI/effects termination if needed
 }
 
 bool AGSAbilityUpgradeStation::CanUpgrade(APawn* PlayerPawn, FText& OutFailReason, FGSAbilityUpgradeLevel& OutNextUpgradeInfo) const
@@ -74,6 +75,7 @@ bool AGSAbilityUpgradeStation::CanUpgrade(APawn* PlayerPawn, FText& OutFailReaso
 		return false;
 	}
 
+	// 1. Find ability spec matching the target gameplay tag
 	FGameplayAbilitySpec* FoundSpec = nullptr;
 	for (FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
 	{
@@ -96,18 +98,21 @@ bool AGSAbilityUpgradeStation::CanUpgrade(APawn* PlayerPawn, FText& OutFailReaso
 	int32 CurrentLevel = FoundSpec->Level;
 	int32 TargetLevel = CurrentLevel + 1;
 
+	// 2. Check if we've reached max level
 	if (CurrentLevel >= UpgradeData->GetMaxLevel())
 	{
 		OutFailReason = FText::FromString(TEXT("Max level already reached."));
 		return false;
 	}
 
+	// 3. Find upgrade level config
 	if (!UpgradeData->GetUpgradeForLevel(TargetLevel, OutNextUpgradeInfo))
 	{
 		OutFailReason = FText::FromString(FString::Printf(TEXT("No upgrade configuration found for Level %d."), TargetLevel));
 		return false;
 	}
 
+	// 4. Validate costs
 	if (OutNextUpgradeInfo.CostType == EGSAUpgradeCostType::Money)
 	{
 		AGSGameState* GSGameState = Cast<AGSGameState>(GetWorld()->GetGameState());
@@ -188,6 +193,7 @@ void AGSAbilityUpgradeStation::AttemptUpgrade(APawn* PlayerPawn)
 		return;
 	}
 
+	// Double check we have ASC
 	IAbilitySystemInterface* ASCInterface = Cast<IAbilitySystemInterface>(PlayerPawn);
 	UAbilitySystemComponent* ASC = ASCInterface->GetAbilitySystemComponent();
 	FGameplayAbilitySpec* FoundSpec = nullptr;
@@ -205,6 +211,7 @@ void AGSAbilityUpgradeStation::AttemptUpgrade(APawn* PlayerPawn)
 
 	if (!FoundSpec) return;
 
+	// Consume cost
 	if (NextUpgrade.CostType == EGSAUpgradeCostType::Money)
 	{
 		AGSGameState* GSGameState = Cast<AGSGameState>(GetWorld()->GetGameState());
@@ -223,6 +230,7 @@ void AGSAbilityUpgradeStation::AttemptUpgrade(APawn* PlayerPawn)
 		}
 	}
 
+	// Apply upgrade level
 	FoundSpec->Level = NextUpgrade.TargetLevel;
 	ASC->MarkAbilitySpecDirty(*FoundSpec);
 
@@ -231,6 +239,7 @@ void AGSAbilityUpgradeStation::AttemptUpgrade(APawn* PlayerPawn)
 
 	OnUpgradeSuccessful.Broadcast(PlayerPawn, NextUpgrade.TargetLevel);
 
+	// Immediately check if the new level reached max level to send the notification
 	if (NextUpgrade.TargetLevel >= UpgradeData->GetMaxLevel())
 	{
 		UE_LOG(LogTemp, Log, TEXT("UpgradeStation: Player reached max level (%d) for ability %s after upgrade"), NextUpgrade.TargetLevel, *TargetAbilityTag.ToString());
@@ -242,11 +251,13 @@ bool AGSAbilityUpgradeStation::ActorMatchesTag(AActor* Actor, const FGameplayTag
 {
 	if (!Actor || !RequiredTag.IsValid()) return false;
 
+	// Check 1: ActorHasTag
 	if (Actor->ActorHasTag(RequiredTag.GetTagName()))
 	{
 		return true;
 	}
 
+	// Check 2: IGameplayTagAssetInterface
 	if (IGameplayTagAssetInterface* TagInterface = Cast<IGameplayTagAssetInterface>(Actor))
 	{
 		if (TagInterface->HasMatchingGameplayTag(RequiredTag))
@@ -255,6 +266,7 @@ bool AGSAbilityUpgradeStation::ActorMatchesTag(AActor* Actor, const FGameplayTag
 		}
 	}
 
+	// Check 3: AGSItem ItemTags
 	if (AGSItem* Item = Cast<AGSItem>(Actor))
 	{
 		if (Item->ItemTags.HasTag(RequiredTag))
@@ -263,6 +275,7 @@ bool AGSAbilityUpgradeStation::ActorMatchesTag(AActor* Actor, const FGameplayTag
 		}
 	}
 
+	// Check 4: Actor ASC tags
 	if (IAbilitySystemInterface* ActorASCInterface = Cast<IAbilitySystemInterface>(Actor))
 	{
 		if (UAbilitySystemComponent* ActorASC = ActorASCInterface->GetAbilitySystemComponent())

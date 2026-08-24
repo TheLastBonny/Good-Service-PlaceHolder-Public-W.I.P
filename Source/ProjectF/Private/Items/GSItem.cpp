@@ -78,13 +78,6 @@ void AGSItem::BeginPlay()
 
 		if (ItemData)
 		{
-
-			if (ItemData->DefaultTags.Num() > 0)
-			{
-				AbilitySystemComponent->AddLooseGameplayTags(ItemData->DefaultTags, 1, EGameplayTagReplicationState::TagOnly);
-			}
-
-
 			for (const TPair<FGameplayTag, FGSItemStateDetails>& StatePair : ItemData->ItemStatesMap)
 			{
 				const FGameplayTag& StateTag = StatePair.Key;
@@ -95,16 +88,28 @@ void AGSItem::BeginPlay()
 					AbilitySystemComponent->SetNumericAttributeBase(Details.MaxProgressAttribute, Details.MaxProgressValue);
 				}
 
-
 				AbilitySystemComponent->RegisterGameplayTagEvent(StateTag, EGameplayTagEventType::NewOrRemoved)
 					.AddUObject(this, &AGSItem::OnStateTagChanged);
 			}
-		}
 
+			if (ItemData->DefaultTags.Num() > 0)
+			{
+				AbilitySystemComponent->AddLooseGameplayTags(ItemData->DefaultTags, 1, EGameplayTagReplicationState::TagOnly);
+			}
 
-		if (ItemTags.Num() > 0)
-		{
-			AbilitySystemComponent->AddLooseGameplayTags(ItemTags, 1, EGameplayTagReplicationState::TagOnly);
+			if (ItemTags.Num() > 0)
+			{
+				AbilitySystemComponent->AddLooseGameplayTags(ItemTags, 1, EGameplayTagReplicationState::TagOnly);
+			}
+
+			for (const TPair<FGameplayTag, FGSItemStateDetails>& StatePair : ItemData->ItemStatesMap)
+			{
+				const FGameplayTag& StateTag = StatePair.Key;
+				if (AbilitySystemComponent->HasMatchingGameplayTag(StateTag))
+				{
+					OnStateTagChanged(StateTag, 1);
+				}
+			}
 		}
 	}
 }
@@ -130,10 +135,10 @@ void AGSItem::OnStateTagChanged(const FGameplayTag CallbackTag, int32 NewCount)
 		{
 			if (bShowDebugLogs)
 			{
-				UE_LOG(LogTemp, Warning, TEXT("[GAS Item] %s ha entrado al estado: %s"), *GetName(), *StateNameStr);
+				UE_LOG(LogTemp, Warning, TEXT("[GAS Item] %s entered state: %s"), *GetName(), *StateNameStr);
 				if (GEngine)
 				{
-					GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, FString::Printf(TEXT("%s: ¡%s!"), *GetName(), *StateNameStr));
+					GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, FString::Printf(TEXT("%s: %s"), *GetName(), *StateNameStr));
 				}
 			}
 

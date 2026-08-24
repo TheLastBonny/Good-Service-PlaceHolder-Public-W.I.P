@@ -19,7 +19,7 @@ bool UGSAbilityUpgradeDataAsset::GetUpgradeForLevel(int32 TargetLevel, FGSAbilit
 
 int32 UGSAbilityUpgradeDataAsset::GetMaxLevel() const
 {
-	int32 MaxLevel = 1;
+	int32 MaxLevel = 1; // Base level is 1
 	for (const FGSAbilityUpgradeLevel& LevelInfo : UpgradeLevels)
 	{
 		if (LevelInfo.TargetLevel > MaxLevel)

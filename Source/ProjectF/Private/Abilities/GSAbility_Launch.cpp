@@ -174,6 +174,7 @@ void UGSAbility_Launch::InputReleased(const FGameplayAbilitySpecHandle Handle, c
 		}
 	}
 
+	// Sort GrabbedItems and GrabComps by their relative location Z in ascending order (bottom of stack to top of stack)
 	for (int32 i = 0; i < GrabbedItems.Num() - 1; ++i)
 	{
 		for (int32 j = i + 1; j < GrabbedItems.Num(); ++j)
@@ -255,6 +256,7 @@ void UGSAbility_Launch::InputReleased(const FGameplayAbilitySpecHandle Handle, c
 				PrimitiveRoot->SetCollisionEnabled(GrabComp->OriginalCollisionEnabled);
 			}
 
+			// Calculate launch direction
 			FVector BaseTargetLoc = PC ? PC->LastAimTargetLocation : (AvatarActor->GetActorLocation() + AvatarActor->GetActorForwardVector() * MaxThrowDistance);
 			FVector Dir = BaseTargetLoc - AvatarActor->GetActorLocation();
 			Dir.Z = 0.0f;
@@ -269,6 +271,7 @@ void UGSAbility_Launch::InputReleased(const FGameplayAbilitySpecHandle Handle, c
 			}
 			float ClampedDistance = FMath::Clamp(Distance, MinThrowDistance, MaxThrowDistance);
 
+			// Calculate dispersed direction
 			float SpreadAngle = DispersedThrowSpreadAngle;
 			float Angle = 0.0f;
 			if (TotalItems > 1)
@@ -340,6 +343,7 @@ void UGSAbility_Launch::InputReleased(const FGameplayAbilitySpecHandle Handle, c
 
 	if (PC && !bThrowAll)
 	{
+		// Find new top-most item to update LastGrabbedActor
 		TArray<AActor*> RemainingAttached;
 		AvatarActor->GetAttachedActors(RemainingAttached);
 		AActor* NewTopItem = nullptr;

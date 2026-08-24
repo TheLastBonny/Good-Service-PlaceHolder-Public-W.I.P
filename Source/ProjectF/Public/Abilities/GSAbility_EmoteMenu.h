@@ -9,6 +9,9 @@ class UGSEmoteLibrary;
 class UGSEmoteDefinition;
 class UGSAbility_EmoteMenu;
 
+/**
+ * Base C++ class for the Emote Selection Widget to allow communication with the ability.
+ */
 UCLASS(Blueprintable, BlueprintType)
 class PROJECTF_API UGSEmoteMenuWidget : public UUserWidget
 {
@@ -22,6 +25,9 @@ public:
 	void OnInitMenu(UGSEmoteLibrary* Library);
 };
 
+/**
+ * Gameplay Ability that instantiates and manages the Emote Menu UI locally.
+ */
 UCLASS()
 class PROJECTF_API UGSAbility_EmoteMenu : public UGameplayAbility
 {

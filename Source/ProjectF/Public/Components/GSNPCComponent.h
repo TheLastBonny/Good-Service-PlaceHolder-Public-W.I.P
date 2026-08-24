@@ -65,10 +65,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC|Order")
 	bool bRequireCookedState;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC|UI")
+	TSubclassOf<class UUserWidget> OrderWidgetClass;
 
-	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "NPC|Order")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "NPC|UI")
+	TObjectPtr<class UUserWidget> ActiveOrderWidgetInstance;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "NPC|UI")
+	TObjectPtr<class UGSBillboardWidgetComponent> OrderWidgetComponent;
+
+	UPROPERTY(ReplicatedUsing = OnRep_ActiveOrder, VisibleAnywhere, BlueprintReadOnly, Category = "NPC|Order")
 	FGSFoodRecipeDetails ActiveOrder;
-
 
 	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "NPC|Order")
 	bool bHasActiveOrder;
@@ -76,6 +83,14 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC|Navigation")
 	TObjectPtr<AActor> AssignedTargetSpot;
+
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "NPC|Timers")
+	float TotalFoodWaitTime;
+
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "NPC|Timers")
+	float FoodWaitStartTime;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC|Timers", meta = (ClampMin = "0.0"))
 	float MinFoodWaitTime;
@@ -111,21 +126,25 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "NPC|Navigation")
 	void SetAssignedTargetSpot(AActor* NewSpot);
 
+	UFUNCTION(BlueprintCallable, Category = "NPC|UI")
+	void CreateOrUpdateOrderWidget();
+
+	UFUNCTION(BlueprintCallable, Category = "NPC|UI")
+	void RemoveOrderWidget();
+
 	UFUNCTION()
 	void OnRep_CurrentNPCState();
+
+	UFUNCTION()
+	void OnRep_ActiveOrder();
 
 private:
 	void HandleFoodTimeout();
 	void HandleEatingFinished();
 	void HandleStateChangedServer(ENPCState OldState, ENPCState NewState);
 
-	void MoveToCurrentSpot();
-	void CheckArrival();
-	void HandleArrival();
-
 	FTimerHandle FoodWaitTimerHandle;
 	FTimerHandle EatingTimerHandle;
-	FTimerHandle ArrivalCheckTimerHandle;
 
 	float PendingMoneyValue;
 };

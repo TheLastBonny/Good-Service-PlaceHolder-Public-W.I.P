@@ -20,5 +20,11 @@ namespace GSGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Input_Action_EmoteMenu, "Input.Action.EmoteMenu");
 	UE_DEFINE_GAMEPLAY_TAG(Event_Ability_PlayEmote, "Event.Ability.PlayEmote");
 	UE_DEFINE_GAMEPLAY_TAG(State_Emoting, "State.Emoting");
+
+	// Game Phase Tags
+	UE_DEFINE_GAMEPLAY_TAG(GamePhase_Core_WaitingToStart, "GamePhase.Core.WaitingToStart");
+	UE_DEFINE_GAMEPLAY_TAG(GamePhase_Core_RoundInProgress, "GamePhase.Core.RoundInProgress");
+	UE_DEFINE_GAMEPLAY_TAG(GamePhase_Core_RoundOver, "GamePhase.Core.RoundOver");
+	UE_DEFINE_GAMEPLAY_TAG(GamePhase_Event, "GamePhase.Event");
 }
 

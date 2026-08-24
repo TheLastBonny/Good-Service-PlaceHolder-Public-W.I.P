@@ -67,13 +67,12 @@ void UGSBurnAttributeSet::PostAttributeChange(const FGameplayAttribute& Attribut
 		if (UAbilitySystemComponent* ASC = GetOwningAbilitySystemComponent())
 		{
 			const FGameplayTag BurnedTag = GSGameplayTags::State_Burned;
-			if (NewValue >= GetMaxBurnProgress())
+			const float MaxProgress = GetMaxBurnProgress();
+			if (MaxProgress > 0.f && NewValue >= MaxProgress)
 			{
 				if (!ASC->HasMatchingGameplayTag(BurnedTag))
 				{
-
 					ASC->AddLooseGameplayTag(BurnedTag, 1, EGameplayTagReplicationState::TagOnly);
-
 					ASC->RemoveLooseGameplayTag(GSGameplayTags::State_Cooked, 1, EGameplayTagReplicationState::TagOnly);
 				}
 			}

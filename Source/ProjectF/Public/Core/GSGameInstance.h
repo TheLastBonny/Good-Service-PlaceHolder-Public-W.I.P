@@ -10,6 +10,9 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGSHostSessionComplete, bool, bWasSuccessful);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGSJoinSessionComplete, bool, bWasSuccessful);
 
+/**
+ * Custom GameInstance to handle hosting and joining Steam sessions using Room Codes
+ */
 UCLASS()
 class PROJECTF_API UGSGameInstance : public UGameInstance
 {

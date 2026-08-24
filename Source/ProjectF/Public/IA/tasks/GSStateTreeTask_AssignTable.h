@@ -14,10 +14,13 @@ struct PROJECTF_API FGSStateTreeTask_AssignTableInstanceData
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Output")
 	bool bSuccess = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Output")
+	TObjectPtr<AActor> AssignedTargetSpot = nullptr;
 };
 
 
-USTRUCT(BlueprintType, meta = (DisplayName = "GS Assign Table"))
+USTRUCT(BlueprintType, meta = (DisplayName = "GS Assign Table", Category = "NPC"))
 struct PROJECTF_API FGSStateTreeTask_AssignTable : public FStateTreeTaskCommonBase
 {
 	GENERATED_BODY()

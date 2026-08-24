@@ -70,6 +70,18 @@
 			"Enabled": true
 		},
 		{
+			"Name": "SmartObjects",
+			"Enabled": true
+		},
+		{
+			"Name": "GameplayBehaviorSmartObjects",
+			"Enabled": true
+		},
+		{
+			"Name": "GameplayBehaviors",
+			"Enabled": true
+		},
+		{
 			"Name": "Terminal",
 			"Enabled": true
 		},

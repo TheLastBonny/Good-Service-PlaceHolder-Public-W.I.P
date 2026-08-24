@@ -10,10 +10,14 @@
 #include "TimerManager.h"
 #include "Engine/World.h"
 #include "AIController.h"
+#include "Components/GSBillboardWidgetComponent.h"
+#include "GameFramework/GameStateBase.h"
+#include "UI/GSNPCOrderWidget.h"
+#include "UI/GSFloatingWidgetBase.h"
 
 UGSNPCComponent::UGSNPCComponent()
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
 	SetIsReplicatedByDefault(true);
 
 	CurrentNPCState = ENPCState::None;
@@ -22,8 +26,10 @@ UGSNPCComponent::UGSNPCComponent()
 	MoneyItemClass = nullptr;
 	bRequireCookedState = true;
 
-	MinFoodWaitTime = 180.0f;
-	MaxFoodWaitTime = 240.0f;
+	TotalFoodWaitTime = 0.0f;
+	FoodWaitStartTime = 0.0f;
+	MinFoodWaitTime = 30.0f;
+	MaxFoodWaitTime = 45.0f;
 	MinEatingTime = 8.0f;
 	MaxEatingTime = 12.0f;
 	OrderTimeoutPenalty = 50;
@@ -41,7 +47,6 @@ void UGSNPCComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	{
 		World->GetTimerManager().ClearTimer(FoodWaitTimerHandle);
 		World->GetTimerManager().ClearTimer(EatingTimerHandle);
-		World->GetTimerManager().ClearTimer(ArrivalCheckTimerHandle);
 	}
 
 	Super::EndPlay(EndPlayReason);
@@ -54,6 +59,38 @@ void UGSNPCComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	DOREPLIFETIME(UGSNPCComponent, CurrentNPCState);
 	DOREPLIFETIME(UGSNPCComponent, ActiveOrder);
 	DOREPLIFETIME(UGSNPCComponent, bHasActiveOrder);
+	DOREPLIFETIME(UGSNPCComponent, TotalFoodWaitTime);
+	DOREPLIFETIME(UGSNPCComponent, FoodWaitStartTime);
+}
+
+void UGSNPCComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	if (CurrentNPCState == ENPCState::WaitingForFood && TotalFoodWaitTime > 0.0f && ActiveOrderWidgetInstance && GetWorld())
+	{
+		float CurrentServerTime = 0.0f;
+		if (AGameStateBase* GS = GetWorld()->GetGameState())
+		{
+			CurrentServerTime = GS->GetServerWorldTimeSeconds();
+		}
+		else
+		{
+			CurrentServerTime = GetWorld()->GetTimeSeconds();
+		}
+
+		float Elapsed = CurrentServerTime - FoodWaitStartTime;
+		float Percent = FMath::Clamp(1.0f - (Elapsed / TotalFoodWaitTime), 0.0f, 1.0f);
+
+		if (UGSNPCOrderWidget* OrderWidget = Cast<UGSNPCOrderWidget>(ActiveOrderWidgetInstance))
+		{
+			OrderWidget->SetPatiencePercent(Percent);
+		}
+		else if (UGSFloatingWidgetBase* BaseWidget = Cast<UGSFloatingWidgetBase>(ActiveOrderWidgetInstance))
+		{
+			BaseWidget->SetProgress(Percent);
+		}
+	}
 }
 
 void UGSNPCComponent::SetNPCState(ENPCState NewState)
@@ -74,6 +111,30 @@ void UGSNPCComponent::SetNPCState(ENPCState NewState)
 void UGSNPCComponent::OnRep_CurrentNPCState()
 {
 	OnNPCStateChanged.Broadcast(CurrentNPCState);
+
+	if (CurrentNPCState == ENPCState::Ordering || CurrentNPCState == ENPCState::WaitingForFood)
+	{
+		if (bHasActiveOrder && ActiveOrder.FoodTag.IsValid())
+		{
+			CreateOrUpdateOrderWidget();
+		}
+	}
+	else if (CurrentNPCState == ENPCState::Eating || CurrentNPCState == ENPCState::Leaving)
+	{
+		RemoveOrderWidget();
+	}
+}
+
+void UGSNPCComponent::OnRep_ActiveOrder()
+{
+	if (bHasActiveOrder && ActiveOrder.FoodTag.IsValid())
+	{
+		CreateOrUpdateOrderWidget();
+	}
+	else
+	{
+		RemoveOrderWidget();
+	}
 }
 
 void UGSNPCComponent::HandleStateChangedServer(ENPCState OldState, ENPCState NewState)
@@ -86,6 +147,19 @@ void UGSNPCComponent::HandleStateChangedServer(ENPCState OldState, ENPCState New
 		if (NewState == ENPCState::WaitingForFood)
 		{
 			float WaitTime = FMath::RandRange(MinFoodWaitTime, MaxFoodWaitTime);
+			TotalFoodWaitTime = WaitTime;
+
+			float CurrentServerTime = 0.0f;
+			if (AGameStateBase* GS = World->GetGameState())
+			{
+				CurrentServerTime = GS->GetServerWorldTimeSeconds();
+			}
+			else
+			{
+				CurrentServerTime = World->GetTimeSeconds();
+			}
+			FoodWaitStartTime = CurrentServerTime;
+
 			World->GetTimerManager().SetTimer(FoodWaitTimerHandle, this, &UGSNPCComponent::HandleFoodTimeout, WaitTime, false);
 		}
 		else if (NewState == ENPCState::Eating)
@@ -103,6 +177,7 @@ void UGSNPCComponent::HandleFoodTimeout()
 		return;
 	}
 
+	RemoveOrderWidget();
 	OnOrderFulfilled.Broadcast(false);
 
 	if (UWorld* World = GetWorld())
@@ -118,6 +193,7 @@ void UGSNPCComponent::HandleFoodTimeout()
 
 	SetNPCState(ENPCState::Leaving);
 
+	bool bSentToExit = false;
 	if (UWorld* World = GetWorld())
 	{
 		if (AGSGameState* GSGameState = Cast<AGSGameState>(World->GetGameState()))
@@ -125,8 +201,14 @@ void UGSNPCComponent::HandleFoodTimeout()
 			if (AGSNPCManager* NPCManager = GSGameState->GetNPCManager())
 			{
 				NPCManager->SendNPCToExit(Cast<APawn>(GetOwner()));
+				bSentToExit = true;
 			}
 		}
+	}
+
+	if (!bSentToExit && GetOwner())
+	{
+		GetOwner()->SetLifeSpan(3.0f);
 	}
 }
 
@@ -176,6 +258,7 @@ void UGSNPCComponent::ChooseRandomOrder()
 		if (ActiveOrder.FoodTag.IsValid())
 		{
 			bHasActiveOrder = true;
+			CreateOrUpdateOrderWidget();
 			OnOrderChosen.Broadcast(ActiveOrder);
 		}
 	}
@@ -226,6 +309,7 @@ bool UGSNPCComponent::DeliverItem(AGSItem* Item)
 		bHasActiveOrder = false;
 		ActiveOrder = FGSFoodRecipeDetails();
 
+		RemoveOrderWidget();
 		OnOrderFulfilled.Broadcast(true);
 
 		Item->Destroy();
@@ -241,96 +325,54 @@ bool UGSNPCComponent::DeliverItem(AGSItem* Item)
 void UGSNPCComponent::SetAssignedTargetSpot(AActor* NewSpot)
 {
 	AssignedTargetSpot = NewSpot;
-	if (GetOwner() && GetOwner()->HasAuthority())
-	{
-		MoveToCurrentSpot();
-	}
 }
 
-void UGSNPCComponent::MoveToCurrentSpot()
+void UGSNPCComponent::CreateOrUpdateOrderWidget()
 {
-	if (UWorld* World = GetWorld())
+	if (!OrderWidgetClass || !GetOwner()) return;
+
+	AActor* OwnerActor = GetOwner();
+	if (!OrderWidgetComponent && OwnerActor)
 	{
-		World->GetTimerManager().ClearTimer(ArrivalCheckTimerHandle);
-
-		if (!AssignedTargetSpot)
+		OrderWidgetComponent = OwnerActor->FindComponentByClass<UGSBillboardWidgetComponent>();
+		if (!OrderWidgetComponent)
 		{
-			return;
-		}
-
-		APawn* PawnOwner = Cast<APawn>(GetOwner());
-		if (!PawnOwner)
-		{
-			return;
-		}
-
-		AAIController* AIC = Cast<AAIController>(PawnOwner->GetController());
-		if (!AIC)
-		{
-			World->GetTimerManager().SetTimerForNextTick(this, &UGSNPCComponent::MoveToCurrentSpot);
-			return;
-		}
-
-		AIC->MoveToActor(AssignedTargetSpot, 50.0f);
-
-		World->GetTimerManager().SetTimer(ArrivalCheckTimerHandle, this, &UGSNPCComponent::CheckArrival, 0.2f, true);
-	}
-}
-
-void UGSNPCComponent::CheckArrival()
-{
-	if (!AssignedTargetSpot || !GetOwner())
-	{
-		if (UWorld* World = GetWorld())
-		{
-			World->GetTimerManager().ClearTimer(ArrivalCheckTimerHandle);
-		}
-		return;
-	}
-
-	float Distance = FVector::Dist(GetOwner()->GetActorLocation(), AssignedTargetSpot->GetActorLocation());
-	if (Distance < 100.0f)
-	{
-		if (UWorld* World = GetWorld())
-		{
-			World->GetTimerManager().ClearTimer(ArrivalCheckTimerHandle);
-		}
-		HandleArrival();
-	}
-}
-
-void UGSNPCComponent::HandleArrival()
-{
-	if (!GetOwner() || !GetOwner()->HasAuthority())
-	{
-		return;
-	}
-
-	if (CurrentNPCState == ENPCState::Entering)
-	{
-		if (UWorld* World = GetWorld())
-		{
-			if (AGSGameState* GSGameState = Cast<AGSGameState>(World->GetGameState()))
+			OrderWidgetComponent = NewObject<UGSBillboardWidgetComponent>(OwnerActor, TEXT("NPCOrderWidgetComp"));
+			if (OrderWidgetComponent)
 			{
-				if (AGSNPCManager* NPCManager = GSGameState->GetNPCManager())
+				OrderWidgetComponent->RegisterComponent();
+				USceneComponent* RootComp = OwnerActor->GetRootComponent();
+				if (RootComp)
 				{
-					int32 TableIdx = NPCManager->TableSpots.Find(AssignedTargetSpot);
-					if (TableIdx != INDEX_NONE)
-					{
-						SetNPCState(ENPCState::Ordering);
-						ChooseRandomOrder();
-						SetNPCState(ENPCState::WaitingForFood);
-					}
-					else
-					{
-						SetNPCState(ENPCState::WaitingInQueue);
-					}
+					OrderWidgetComponent->AttachToComponent(RootComp, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 				}
+				OrderWidgetComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 120.0f));
 			}
 		}
 	}
-	else if (CurrentNPCState == ENPCState::Leaving)
+
+	if (OrderWidgetComponent)
 	{
-		GetOwner()->Destroy();
+		OrderWidgetComponent->SetWidgetClass(OrderWidgetClass);
+		OrderWidgetComponent->SetVisibility(true);
+
+		ActiveOrderWidgetInstance = OrderWidgetComponent->GetUserWidgetObject();
+		if (UGSNPCOrderWidget* OrderWidget = Cast<UGSNPCOrderWidget>(ActiveOrderWidgetInstance))
+		{
+			OrderWidget->SetOrderDetails(ActiveOrder);
+		}
+		else if (UGSFloatingWidgetBase* BaseWidget = Cast<UGSFloatingWidgetBase>(ActiveOrderWidgetInstance))
+		{
+			BaseWidget->SetWidgetData(ActiveOrder.FoodIcon, ActiveOrder.FoodName, FText::GetEmpty(), 1.0f);
+		}
 	}
+}
+
+void UGSNPCComponent::RemoveOrderWidget()
+{
+	if (OrderWidgetComponent)
+	{
+		OrderWidgetComponent->SetVisibility(false);
+	}
+	ActiveOrderWidgetInstance = nullptr;
 }
