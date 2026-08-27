@@ -13,6 +13,8 @@
 
 **ProjectF (Good Service)** is a multiplayer restaurant and service simulation framework built in **Unreal Engine 5.8**. The project serves as an architectural blueprint for modern multiplayer game design, replacing legacy engine patterns with modular, data-driven frameworks.
 
+https://github.com/TheLastBonny/Good-Service-PlaceHolder-Public-W.I.P/raw/main/docs/videos/projectf_overview.mp4
+
 ---
 
 ### Author's Note: The Mindset Shift Toward Data-Driven & Asynchronous Creation
@@ -140,8 +142,9 @@ Guía completa ilustrada paso a paso para la creación, optimización e integrac
 │   ├── PROJECT_DOCUMENTATION.md   # Creator & Editor Workflow Guide
 │   ├── TECHNICAL_DOCUMENTATION.md # Mover, GAS & Verse Technical Framework Guide
 │   ├── 3D_PIPELINE_DOCUMENTATION.md # 3D Asset, Texturing, Rigging & Animation Pipeline Guide
-│   └── images/
-│       └── 3d_pipeline/           # High-resolution screenshots and pipeline diagrams
+│   ├── images/
+│   │   └── 3d_pipeline/           # High-resolution screenshots and pipeline diagrams
+│   └── videos/                    # Framework and gameplay showcase videos
 ├── CONTRIBUTING.md                # Community Contribution Guidelines
 ├── LICENSE                        # CC BY-NC-SA 4.0 Legal License
 └── ProjectF.uproject              # Unreal Engine 5.8 Project File
